@@ -35,12 +35,12 @@ public class ShinanoController : MonoBehaviour
     // Expression data
     private string[] eyeEffects = { "Default", "Cheek", "Heart", "Dead", "Spiral", "Sparkle", "White", "Tear", "Sweat" };
     
-    // F_Set 0: Joy expressions
-    private string[] gestureSet0 = { "Default", "Fist", "EyeCls1", "Point", "Wink1", "Rock", "Smile1", "Joy2" };
-    // F_Set 1: Calm expressions  
-    private string[] gestureSet1 = { "Default", "Confuse", "EyeCls2", "Nagomi", "Wink2", "Zito", "Smile2", "Joy1" };
-    // F_Set 2: Complex expressions
-    private string[] gestureSet2 = { "Default", "Bitter", "EyeCls3", "Kyoton", "Grin", "Doya", "Smile3", "Cry" };
+    // F_Set 0: Joy expressions (Gesture 0-7 triggers)
+    private string[] gestureSet0 = { "Default", "Smile1", "Joy2", "Wink1", "Kirakira", "EyeCls1", "Surprised", "Angry2" };
+    // F_Set 1: Calm expressions (Gesture 0-7 triggers)
+    private string[] gestureSet1 = { "Default", "Smile2", "Joy1", "Wink2", "Nagomi", "EyeCls2", "Confuse", "ZitoAngry" };
+    // F_Set 2: Complex expressions (Gesture 0-7 triggers)
+    private string[] gestureSet2 = { "Default", "Smile3", "Cry", "Grin", "Doya", "EyeCls3", "Kyoton", "Bitter" };
     
     private Text[] leftGestureLabels;
     private Text[] rightGestureLabels;
