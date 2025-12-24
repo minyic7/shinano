@@ -1,12 +1,17 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
-using UnityEngine.Playables;
-using UnityEngine.Animations;
 
 /// <summary>
 /// Shinano Character Expression & Customization Controller
-/// Complete UI panel for controlling all avatar features
+/// 
+/// ARCHITECTURE:
+/// - Facial Parts (F_Parts): Eye effects like hearts, spirals, tears, etc.
+/// - Facial Set (F_Set): Selects which expression set is active (0=Joy, 1=Calm, 2=Complex)
+/// - Gesture Triggers: Within each F_Set, different gesture values trigger different expressions
+/// - Costume/Body: Toggle visibility of clothing and body features
+/// 
+/// NOTE: Hand poses require VRChat SDK Avatar Masks. Without them, we control facial expressions only.
 /// </summary>
 public class ShinanoController : MonoBehaviour
 {
@@ -17,9 +22,6 @@ public class ShinanoController : MonoBehaviour
     [Header("Camera Reference")]
     public Camera mainCamera;
     
-    [Header("Gesture Animations")]
-    public AnimationClip[] handPoseClips;
-    
     [Header("UI Settings")]
     public KeyCode togglePanelKey = KeyCode.Tab;
     public bool panelVisible = true;
@@ -27,103 +29,37 @@ public class ShinanoController : MonoBehaviour
     // UI References
     private Canvas uiCanvas;
     private GameObject panelRoot;
+    private ScrollRect scrollRect;
     
     // State tracking
     private float characterRotation = 0f;
-    
-    // Names arrays
-    private string[] expressionNames = { "Default", "Cheek", "Heart", "Dead", "Guru", "Kira", "White", "Tear", "Sweat" };
-    
-    // F_Set 0: Joy type expressions
-    private string[] gestureSet0 = { "Default", "Fist", "EyeCls1", "Point", "Wink1", "Rock", "Smile1", "Joy2" };
-    // F_Set 1: Calm type expressions
-    private string[] gestureSet1 = { "Default", "Confuse", "EyeCls2", "Nagomi", "Wink2", "Zito", "Smile2", "Joy1" };
-    // F_Set 2: Complex type expressions
-    private string[] gestureSet2 = { "Default", "Bitter", "EyeCls3", "Kyoton", "Grin", "Doya", "Smile3", "Cry" };
+    private int currentFSet = 0;
     
     // Colors
-    private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
-    private Color sectionColor = new Color(0.7f, 0.5f, 0.8f);
-    private Color textColor = new Color(0.9f, 0.9f, 0.95f);
+    private Color panelBg = new Color(0.12f, 0.12f, 0.16f, 0.95f);
+    private Color sectionColor = new Color(0.75f, 0.55f, 0.85f);
+    private Color textColor = new Color(0.92f, 0.92f, 0.96f);
+    private Color btnActive = new Color(0.45f, 0.55f, 0.65f);
+    private Color btnNormal = new Color(0.28f, 0.28f, 0.35f);
     
-    // State
-    private int currentFSet = 0;
-    private Text[] leftGestureLabels;
-    private Text[] rightGestureLabels;
+    // Expression data
+    private string[] eyeEffects = { "Default", "Cheek", "Heart", "Dead", "Spiral", "Sparkle", "White", "Tear", "Sweat" };
     
-    // Hand pose playables
-    private PlayableGraph handPoseGraph;
-    private AnimationMixerPlayable handMixer;
-    private AnimationClipPlayable[] handPosePlayables;
-    private string[] handPoseNames = { "Open", "Fist", "Point", "Victory", "Rock", "Gun", "Thumb" };
+    // Facial expressions per set - these are triggered by gesture values 0-7
+    private string[][] facialSets = new string[][] {
+        // F_Set 0 (Joy): Gesture 0-7 triggers these
+        new string[] { "Idle", "Smile1", "Joy2", "Wink1", "Kirakira", "EyeCls1", "Surprised", "Angry2" },
+        // F_Set 1 (Calm): Gesture 0-7 triggers these
+        new string[] { "Idle", "Smile2", "Joy1", "Wink2", "Nagomi", "EyeCls2", "Confuse", "Zito" },
+        // F_Set 2 (Complex): Gesture 0-7 triggers these
+        new string[] { "Idle", "Smile3", "Cry", "Grin", "Doya", "EyeCls3", "Kyoton", "Bitter" }
+    };
     
     void Start()
     {
         FindCharacter();
         FindCamera();
-        LoadHandPoseClips();
-        SetupHandPosePlayables();
         CreateUI();
-    }
-    
-    void LoadHandPoseClips()
-    {
-        // Load hand pose clips from Resources or by path
-        handPoseClips = new AnimationClip[7];
-        string[] clipNames = { "Hand open", "Fist", "Finger point", "Victory", "Rockn roll", "Hand gun", "Thums up" };
-        
-        for (int i = 0; i < clipNames.Length; i++)
-        {
-            string path = $"Assets/Shinano/Animation/Gesture/{clipNames[i]}.anim";
-            #if UNITY_EDITOR
-            handPoseClips[i] = UnityEditor.AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
-            if (handPoseClips[i] != null)
-                Debug.Log($"Loaded hand pose: {clipNames[i]}");
-            else
-                Debug.LogWarning($"Failed to load: {path}");
-            #endif
-        }
-    }
-    
-    void SetupHandPosePlayables()
-    {
-        if (characterAnimator == null) return;
-        
-        // Create playable graph for hand poses
-        handPoseGraph = PlayableGraph.Create("HandPoseGraph");
-        handPoseGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
-        
-        // Create mixer
-        int clipCount = handPoseClips != null ? handPoseClips.Length : 0;
-        if (clipCount == 0) return;
-        
-        handMixer = AnimationMixerPlayable.Create(handPoseGraph, clipCount + 1);
-        handPosePlayables = new AnimationClipPlayable[clipCount];
-        
-        for (int i = 0; i < clipCount; i++)
-        {
-            if (handPoseClips[i] != null)
-            {
-                handPosePlayables[i] = AnimationClipPlayable.Create(handPoseGraph, handPoseClips[i]);
-                handPoseGraph.Connect(handPosePlayables[i], 0, handMixer, i + 1);
-            }
-        }
-        
-        // Create output and play
-        var output = AnimationPlayableOutput.Create(handPoseGraph, "HandPose", characterAnimator);
-        output.SetSourcePlayable(handMixer);
-        
-        // Start with all weights at 0
-        for (int i = 0; i <= clipCount; i++)
-            handMixer.SetInputWeight(i, 0f);
-            
-        handPoseGraph.Play();
-    }
-    
-    void OnDestroy()
-    {
-        if (handPoseGraph.IsValid())
-            handPoseGraph.Destroy();
     }
     
     void FindCharacter()
@@ -183,7 +119,7 @@ public class ShinanoController : MonoBehaviour
             eventSystem.AddComponent<StandaloneInputModule>();
         }
         
-        // Create main panel - left side of screen
+        // Create main panel - WIDER (400px)
         panelRoot = new GameObject("MainPanel");
         panelRoot.transform.SetParent(canvasObj.transform, false);
         
@@ -192,103 +128,118 @@ public class ShinanoController : MonoBehaviour
         panelRect.anchorMax = new Vector2(0, 1);
         panelRect.pivot = new Vector2(0, 0.5f);
         panelRect.anchoredPosition = new Vector2(10, 0);
-        panelRect.sizeDelta = new Vector2(320, -40);
+        panelRect.sizeDelta = new Vector2(400, -20); // Wider panel
         
         Image panelImg = panelRoot.AddComponent<Image>();
         panelImg.color = panelBg;
         
-        float y = -10;
+        // Create scroll view for content
+        GameObject scrollObj = new GameObject("ScrollView");
+        scrollObj.transform.SetParent(panelRoot.transform, false);
+        
+        RectTransform scrollRt = scrollObj.AddComponent<RectTransform>();
+        scrollRt.anchorMin = Vector2.zero;
+        scrollRt.anchorMax = Vector2.one;
+        scrollRt.offsetMin = new Vector2(5, 5);
+        scrollRt.offsetMax = new Vector2(-5, -5);
+        
+        scrollRect = scrollObj.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.scrollSensitivity = 30f;
+        
+        // Content container
+        GameObject contentObj = new GameObject("Content");
+        contentObj.transform.SetParent(scrollObj.transform, false);
+        
+        RectTransform contentRt = contentObj.AddComponent<RectTransform>();
+        contentRt.anchorMin = new Vector2(0, 1);
+        contentRt.anchorMax = new Vector2(1, 1);
+        contentRt.pivot = new Vector2(0.5f, 1);
+        contentRt.anchoredPosition = Vector2.zero;
+        
+        scrollRect.content = contentRt;
+        
+        // Add mask
+        Image scrollImg = scrollObj.AddComponent<Image>();
+        scrollImg.color = new Color(0, 0, 0, 0);
+        scrollObj.AddComponent<Mask>().showMaskGraphic = false;
+        
+        float y = 0;
+        float panelWidth = 380; // Content width
         
         // Title
-        AddLabel(panelRoot.transform, "✨ Shinano Controller", 18, y, sectionColor);
-        y -= 25;
-        AddLabel(panelRoot.transform, "Press TAB to toggle", 10, y, new Color(0.6f, 0.6f, 0.6f));
-        y -= 30;
+        AddLabel(contentRt, "✨ Shinano Controller", 20, y, sectionColor, panelWidth);
+        y -= 28;
+        AddLabel(contentRt, "Press TAB to toggle panel", 11, y, new Color(0.6f, 0.6f, 0.65f), panelWidth);
+        y -= 35;
         
-        // === EXPRESSIONS ===
-        AddSectionHeader(panelRoot.transform, "🎭 Expressions", ref y);
-        AddButtonGrid(panelRoot.transform, expressionNames, 3, ref y, (i) => SetAnimatorInt("F_Parts", i));
+        // === EYE EFFECTS (F_Parts) ===
+        AddSection(contentRt, "👁️ Eye Effects", ref y, panelWidth);
+        AddLabel(contentRt, "Add special eye effects (hearts, tears, etc.)", 10, y, new Color(0.6f, 0.6f, 0.7f), panelWidth);
+        y -= 18;
+        AddButtonRow(contentRt, eyeEffects, ref y, panelWidth, (i) => SetAnimatorInt("F_Parts", i));
         
         // === FACIAL SET ===
-        AddSectionHeader(panelRoot.transform, "😊 Facial Set (Select First!)", ref y);
-        AddLabel(panelRoot.transform, "Joy / Calm / Complex", 10, y, new Color(0.6f, 0.6f, 0.7f));
-        y -= 15;
-        AddFSetButtons(panelRoot.transform, ref y);
+        AddSection(contentRt, "😊 Facial Expression Set", ref y, panelWidth);
+        AddLabel(contentRt, "Select expression style, then choose expression below", 10, y, new Color(0.6f, 0.6f, 0.7f), panelWidth);
+        y -= 18;
+        AddFSetSelector(contentRt, ref y, panelWidth);
         
-        // === FACIAL GESTURES ===
-        AddSectionHeader(panelRoot.transform, "👁️ Facial Expressions", ref y);
-        AddLabel(panelRoot.transform, "Left Hand Trigger:", 10, y, new Color(0.7f, 0.7f, 0.8f));
-        y -= 15;
-        leftGestureLabels = AddGestureGrid(panelRoot.transform, GetCurrentGestureSet(), ref y, (i) => SetAnimatorInt("GestureLeft", i));
-        AddLabel(panelRoot.transform, "Right Hand Trigger:", 10, y, new Color(0.7f, 0.7f, 0.8f));
-        y -= 15;
-        rightGestureLabels = AddGestureGrid(panelRoot.transform, GetCurrentGestureSet(), ref y, (i) => SetAnimatorInt("GestureRight", i));
+        // === EXPRESSIONS (based on F_Set) ===
+        y -= 10;
+        AddLabel(contentRt, "Choose Expression:", 11, y, textColor, panelWidth);
+        y -= 18;
+        AddExpressionButtons(contentRt, ref y, panelWidth);
         
         // === COSTUME ===
-        AddSectionHeader(panelRoot.transform, "👗 Costume", ref y);
-        AddToggleRow(panelRoot.transform, new string[]{"Sweater","Dress","Skirt","Tights"}, ref y,
-            new string[]{"Sweater","Dress","Skirt","Tights"}, new bool[]{true,true,true,true}, true);
-        AddToggleRow(panelRoot.transform, new string[]{"Boots","Bra","Shorts"}, ref y,
-            new string[]{"Boots","Cloth_under_bra","Cloth_under_shorts"}, new bool[]{true,true,true}, true);
+        AddSection(contentRt, "👗 Costume", ref y, panelWidth);
+        AddToggleGrid(contentRt, ref y, panelWidth, new string[]{"Sweater","Dress","Skirt","Tights","Boots"},
+            new string[]{"Sweater","Dress","Skirt","Tights","Boots"}, true, true);
+        AddToggleGrid(contentRt, ref y, panelWidth, new string[]{"Bra","Shorts"},
+            new string[]{"Cloth_under_bra","Cloth_under_shorts"}, true, false);
         
         // === HAIR ===
-        AddSectionHeader(panelRoot.transform, "💇 Hair", ref y);
-        AddToggleRow(panelRoot.transform, new string[]{"Bangs","Half-up"}, ref y,
-            new string[]{"Bangs","Half"}, new bool[]{true, true}, true);
-        AddSlider(panelRoot.transform, "Length", ref y, (v) => SetAnimatorFloat("Length", v));
-        AddButtonGrid(panelRoot.transform, new string[]{"Default","Braid","Side L","Side R","All"}, 5, ref y, (i) => SetAnimatorInt("Hair", i));
+        AddSection(contentRt, "💇 Hair Style", ref y, panelWidth);
+        AddToggleGrid(contentRt, ref y, panelWidth, new string[]{"Side Bangs","Half-up"},
+            new string[]{"Bangs","Half"}, true, true);
+        AddSliderRow(contentRt, "Length", ref y, panelWidth, (v) => SetAnimatorFloat("Length", v), 0.5f);
+        y -= 5;
+        AddButtonRow(contentRt, new string[]{"Default","Braid","Side L","Side R","All"}, ref y, panelWidth,
+            (i) => SetAnimatorInt("Hair", i));
         
         // === BODY ===
-        AddSectionHeader(panelRoot.transform, "✨ Body", ref y);
-        AddToggleRow(panelRoot.transform, new string[]{"Ears","Tail"}, ref y,
-            new string[]{"Ear","Tail"}, new bool[]{true, true}, true);
-        AddToggleRow(panelRoot.transform, new string[]{"Backlit","AFK","Big Hip"}, ref y,
-            new string[]{"Backlit","AFK","Hip"}, new bool[]{false, false, false}, false);
-        AddSlider(panelRoot.transform, "Breast", ref y, (v) => SetAnimatorFloat("Breast", v));
+        AddSection(contentRt, "✨ Body Features", ref y, panelWidth);
+        AddToggleGrid(contentRt, ref y, panelWidth, new string[]{"Fox Ears","Tail","Big Hip"},
+            new string[]{"Ear","Tail","Hip"}, new bool[]{true,true,false}, new bool[]{true,true,false});
+        AddToggleGrid(contentRt, ref y, panelWidth, new string[]{"Backlit Effect","AFK Mode"},
+            new string[]{"Backlit","AFK"}, new bool[]{false,false}, new bool[]{false,false});
+        AddSliderRow(contentRt, "Breast Size", ref y, panelWidth, (v) => SetAnimatorFloat("Breast", v), 0.5f);
         
         // === CAMERA ===
-        AddSectionHeader(panelRoot.transform, "📷 Camera", ref y);
-        AddSlider(panelRoot.transform, "Rotate", ref y, (v) => {
+        AddSection(contentRt, "📷 View Controls", ref y, panelWidth);
+        AddSliderRow(contentRt, "Rotate Character", ref y, panelWidth, (v) => {
             characterRotation = (v - 0.5f) * 360f;
             if (shinanoCharacter != null)
                 shinanoCharacter.transform.rotation = Quaternion.Euler(0, characterRotation, 0);
-        });
-        AddSlider(panelRoot.transform, "Distance", ref y, (v) => {
+        }, 0.5f);
+        AddSliderRow(contentRt, "Camera Distance", ref y, panelWidth, (v) => {
             if (mainCamera != null)
             {
                 Vector3 pos = mainCamera.transform.position;
                 pos.z = Mathf.Lerp(0.5f, 5f, v);
                 mainCamera.transform.position = pos;
             }
-        });
+        }, 0.5f);
         
-        // === HAND POSES ===
-        AddSectionHeader(panelRoot.transform, "✋ Hand Poses", ref y);
-        AddLabel(panelRoot.transform, "(Layered on top of current animation)", 9, y, new Color(0.6f, 0.6f, 0.7f));
-        y -= 12;
-        string[] poseLabels = { "None", "Open", "Fist", "Point", "Peace", "Rock", "Gun", "Thumb" };
-        AddButtonGrid(panelRoot.transform, poseLabels, 4, ref y, (i) => PlayHandPose(i - 1));
+        // Set content height
+        y -= 20;
+        contentRt.sizeDelta = new Vector2(0, -y);
     }
     
-    void PlayHandPose(int poseIndex)
-    {
-        if (!handPoseGraph.IsValid() || handPosePlayables == null) return;
-        
-        Debug.Log($"Playing hand pose: {poseIndex}");
-        
-        // Set all weights to 0
-        int count = handPosePlayables.Length;
-        for (int i = 0; i <= count; i++)
-            handMixer.SetInputWeight(i, 0f);
-        
-        // If poseIndex < 0, we're setting to "None" (no hand pose overlay)
-        if (poseIndex >= 0 && poseIndex < count && handPosePlayables[poseIndex].IsValid())
-        {
-            handMixer.SetInputWeight(poseIndex + 1, 1f);
-        }
-    }
+    // === UI Building Methods ===
     
-    void AddLabel(Transform parent, string text, int size, float y, Color color)
+    void AddLabel(RectTransform parent, string text, int size, float y, Color color, float width)
     {
         GameObject obj = new GameObject("Label");
         obj.transform.SetParent(parent, false);
@@ -298,7 +249,7 @@ public class ShinanoController : MonoBehaviour
         rect.anchorMax = new Vector2(1, 1);
         rect.pivot = new Vector2(0.5f, 1);
         rect.anchoredPosition = new Vector2(0, y);
-        rect.sizeDelta = new Vector2(0, 20);
+        rect.sizeDelta = new Vector2(0, size + 8);
         
         Text txt = obj.AddComponent<Text>();
         txt.text = text;
@@ -308,246 +259,93 @@ public class ShinanoController : MonoBehaviour
         txt.color = color;
     }
     
-    void AddSectionHeader(Transform parent, string text, ref float y)
+    void AddSection(RectTransform parent, string title, ref float y, float width)
     {
-        y -= 5;
+        y -= 12;
         
-        // Divider line
+        // Divider
         GameObject div = new GameObject("Divider");
         div.transform.SetParent(parent, false);
-        RectTransform divRect = div.AddComponent<RectTransform>();
-        divRect.anchorMin = new Vector2(0, 1);
-        divRect.anchorMax = new Vector2(1, 1);
-        divRect.pivot = new Vector2(0.5f, 1);
-        divRect.anchoredPosition = new Vector2(0, y);
-        divRect.sizeDelta = new Vector2(-20, 1);
-        div.AddComponent<Image>().color = new Color(0.5f, 0.4f, 0.6f, 0.5f);
+        RectTransform divRt = div.AddComponent<RectTransform>();
+        divRt.anchorMin = new Vector2(0, 1);
+        divRt.anchorMax = new Vector2(1, 1);
+        divRt.pivot = new Vector2(0.5f, 1);
+        divRt.anchoredPosition = new Vector2(0, y);
+        divRt.sizeDelta = new Vector2(-20, 1);
+        div.AddComponent<Image>().color = new Color(0.5f, 0.4f, 0.6f, 0.4f);
         
-        y -= 8;
-        AddLabel(parent, text, 13, y, sectionColor);
-        y -= 20;
+        y -= 10;
+        AddLabel(parent, title, 14, y, sectionColor, width);
+        y -= 24;
     }
     
-    void AddButtonGrid(Transform parent, string[] labels, int cols, ref float y, System.Action<int> onClick)
+    void AddButtonRow(RectTransform parent, string[] labels, ref float y, float width, System.Action<int> onClick)
     {
-        float btnW = (300f - 10) / cols - 4;
-        float btnH = 24;
+        int cols = Mathf.Min(labels.Length, 5);
+        float btnW = (width - 10) / cols - 4;
+        float btnH = 28;
         
         for (int i = 0; i < labels.Length; i++)
         {
             int row = i / cols;
             int col = i % cols;
             
-            GameObject btn = new GameObject("Btn_" + labels[i]);
-            btn.transform.SetParent(parent, false);
-            
-            RectTransform rect = btn.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0, 1);
-            rect.anchorMax = new Vector2(0, 1);
-            rect.pivot = new Vector2(0, 1);
-            rect.anchoredPosition = new Vector2(10 + col * (btnW + 4), y - row * (btnH + 3));
-            rect.sizeDelta = new Vector2(btnW, btnH);
-            
-            Image img = btn.AddComponent<Image>();
-            img.color = new Color(0.3f + (i * 0.02f), 0.3f, 0.4f);
-            
-            Button button = btn.AddComponent<Button>();
-            button.targetGraphic = img;
-            int idx = i;
-            button.onClick.AddListener(() => onClick(idx));
-            
-            // Text
-            GameObject txtObj = new GameObject("Text");
-            txtObj.transform.SetParent(btn.transform, false);
-            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.sizeDelta = Vector2.zero;
-            
-            Text txt = txtObj.AddComponent<Text>();
-            txt.text = labels[i];
-            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            txt.fontSize = 11;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.color = Color.white;
+            CreateButton(parent, labels[i], 10 + col * (btnW + 4), y - row * (btnH + 3), btnW, btnH, i, onClick);
         }
         
         int rows = (labels.Length + cols - 1) / cols;
-        y -= rows * (btnH + 3) + 5;
+        y -= rows * (btnH + 3) + 8;
     }
     
-    void AddToggleRow(Transform parent, string[] labels, ref float y, string[] paramNames, bool[] defaultOn, bool invertLogic)
+    void CreateButton(RectTransform parent, string label, float x, float yPos, float w, float h, int idx, System.Action<int> onClick)
     {
-        float toggleW = (300f - 10) / labels.Length - 4;
+        GameObject btn = new GameObject("Btn_" + label);
+        btn.transform.SetParent(parent, false);
         
-        for (int i = 0; i < labels.Length; i++)
-        {
-            bool isOn = defaultOn[i];
-            
-            GameObject tog = new GameObject("Toggle_" + labels[i]);
-            tog.transform.SetParent(parent, false);
-            
-            RectTransform rect = tog.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0, 1);
-            rect.anchorMax = new Vector2(0, 1);
-            rect.pivot = new Vector2(0, 1);
-            rect.anchoredPosition = new Vector2(10 + i * (toggleW + 4), y);
-            rect.sizeDelta = new Vector2(toggleW, 28);
-            
-            Image bg = tog.AddComponent<Image>();
-            bg.color = new Color(0.25f, 0.25f, 0.3f);
-            
-            // Label
-            GameObject lblObj = new GameObject("Label");
-            lblObj.transform.SetParent(tog.transform, false);
-            RectTransform lblRect = lblObj.AddComponent<RectTransform>();
-            lblRect.anchorMin = Vector2.zero;
-            lblRect.anchorMax = new Vector2(0.7f, 1);
-            lblRect.offsetMin = new Vector2(3, 0);
-            lblRect.offsetMax = Vector2.zero;
-            
-            Text lbl = lblObj.AddComponent<Text>();
-            lbl.text = labels[i];
-            lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            lbl.fontSize = 10;
-            lbl.alignment = TextAnchor.MiddleLeft;
-            lbl.color = textColor;
-            
-            // Toggle indicator
-            GameObject ind = new GameObject("Indicator");
-            ind.transform.SetParent(tog.transform, false);
-            RectTransform indRect = ind.AddComponent<RectTransform>();
-            indRect.anchorMin = new Vector2(1, 0.5f);
-            indRect.anchorMax = new Vector2(1, 0.5f);
-            indRect.pivot = new Vector2(1, 0.5f);
-            indRect.anchoredPosition = new Vector2(-3, 0);
-            indRect.sizeDelta = new Vector2(12, 12);
-            
-            Image indImg = ind.AddComponent<Image>();
-            indImg.color = isOn ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
-            
-            Toggle toggle = tog.AddComponent<Toggle>();
-            toggle.isOn = isOn;
-            toggle.graphic = indImg;
-            
-            string param = paramNames[i];
-            bool isMesh = param.StartsWith("Cloth_");
-            bool invert = invertLogic;
-            
-            toggle.onValueChanged.AddListener((val) => {
-                indImg.color = val ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
-                if (isMesh)
-                    ToggleMesh(param, val);
-                else
-                    SetAnimatorBool(param, invert ? !val : val);
-            });
-        }
+        RectTransform rect = btn.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0, 1);
+        rect.anchorMax = new Vector2(0, 1);
+        rect.pivot = new Vector2(0, 1);
+        rect.anchoredPosition = new Vector2(x, yPos);
+        rect.sizeDelta = new Vector2(w, h);
         
-        y -= 33;
+        Image img = btn.AddComponent<Image>();
+        img.color = btnNormal;
+        
+        Button button = btn.AddComponent<Button>();
+        button.targetGraphic = img;
+        button.onClick.AddListener(() => onClick(idx));
+        
+        GameObject txtObj = new GameObject("Text");
+        txtObj.transform.SetParent(btn.transform, false);
+        RectTransform txtRt = txtObj.AddComponent<RectTransform>();
+        txtRt.anchorMin = Vector2.zero;
+        txtRt.anchorMax = Vector2.one;
+        txtRt.sizeDelta = Vector2.zero;
+        
+        Text txt = txtObj.AddComponent<Text>();
+        txt.text = label;
+        txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        txt.fontSize = 11;
+        txt.alignment = TextAnchor.MiddleCenter;
+        txt.color = Color.white;
     }
     
-    void AddSlider(Transform parent, string label, ref float y, System.Action<float> onChange)
-    {
-        // Label
-        GameObject lblObj = new GameObject("Label_" + label);
-        lblObj.transform.SetParent(parent, false);
-        RectTransform lblRect = lblObj.AddComponent<RectTransform>();
-        lblRect.anchorMin = new Vector2(0, 1);
-        lblRect.anchorMax = new Vector2(0, 1);
-        lblRect.pivot = new Vector2(0, 1);
-        lblRect.anchoredPosition = new Vector2(10, y);
-        lblRect.sizeDelta = new Vector2(60, 18);
-        
-        Text lbl = lblObj.AddComponent<Text>();
-        lbl.text = label;
-        lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        lbl.fontSize = 11;
-        lbl.alignment = TextAnchor.MiddleLeft;
-        lbl.color = textColor;
-        
-        // Slider bg
-        GameObject sliderBg = new GameObject("Slider_" + label);
-        sliderBg.transform.SetParent(parent, false);
-        RectTransform bgRect = sliderBg.AddComponent<RectTransform>();
-        bgRect.anchorMin = new Vector2(0, 1);
-        bgRect.anchorMax = new Vector2(1, 1);
-        bgRect.pivot = new Vector2(0.5f, 1);
-        bgRect.anchoredPosition = new Vector2(30, y);
-        bgRect.sizeDelta = new Vector2(-80, 16);
-        
-        Image bgImg = sliderBg.AddComponent<Image>();
-        bgImg.color = new Color(0.2f, 0.2f, 0.25f);
-        
-        // Fill
-        GameObject fill = new GameObject("Fill");
-        fill.transform.SetParent(sliderBg.transform, false);
-        RectTransform fillRect = fill.AddComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = new Vector2(0.5f, 1);
-        fillRect.offsetMin = Vector2.zero;
-        fillRect.offsetMax = Vector2.zero;
-        
-        Image fillImg = fill.AddComponent<Image>();
-        fillImg.color = sectionColor;
-        
-        // Handle
-        GameObject handle = new GameObject("Handle");
-        handle.transform.SetParent(sliderBg.transform, false);
-        RectTransform handleRect = handle.AddComponent<RectTransform>();
-        handleRect.anchorMin = new Vector2(0.5f, 0);
-        handleRect.anchorMax = new Vector2(0.5f, 1);
-        handleRect.sizeDelta = new Vector2(8, 0);
-        
-        handle.AddComponent<Image>().color = Color.white;
-        
-        Slider slider = sliderBg.AddComponent<Slider>();
-        slider.fillRect = fillRect;
-        slider.handleRect = handleRect;
-        slider.value = 0.5f;
-        slider.onValueChanged.AddListener((v) => {
-            fillRect.anchorMax = new Vector2(v, 1);
-            onChange(v);
-        });
-        
-        y -= 22;
-    }
+    private Button[] fsetButtons;
+    private Button[] expressionButtons;
+    private Text[] expressionLabels;
     
-    // === Helper Methods ===
-    
-    string[] GetCurrentGestureSet()
+    void AddFSetSelector(RectTransform parent, ref float y, float width)
     {
-        switch (currentFSet)
-        {
-            case 1: return gestureSet1;
-            case 2: return gestureSet2;
-            default: return gestureSet0;
-        }
-    }
-    
-    void UpdateGestureLabels()
-    {
-        string[] labels = GetCurrentGestureSet();
-        if (leftGestureLabels != null)
-        {
-            for (int i = 0; i < leftGestureLabels.Length && i < labels.Length; i++)
-                if (leftGestureLabels[i] != null) leftGestureLabels[i].text = labels[i];
-        }
-        if (rightGestureLabels != null)
-        {
-            for (int i = 0; i < rightGestureLabels.Length && i < labels.Length; i++)
-                if (rightGestureLabels[i] != null) rightGestureLabels[i].text = labels[i];
-        }
-    }
-    
-    void AddFSetButtons(Transform parent, ref float y)
-    {
-        string[] labels = { "Joy", "Calm", "Complex" };
-        float btnW = (300f - 10) / 3 - 4;
-        float btnH = 26;
+        string[] labels = { "Joy Set", "Calm Set", "Complex Set" };
+        float btnW = (width - 10) / 3 - 4;
+        float btnH = 30;
         
-        for (int i = 0; i < labels.Length; i++)
+        fsetButtons = new Button[3];
+        
+        for (int i = 0; i < 3; i++)
         {
-            GameObject btn = new GameObject("FSet_" + labels[i]);
+            GameObject btn = new GameObject("FSet_" + i);
             btn.transform.SetParent(parent, false);
             
             RectTransform rect = btn.AddComponent<RectTransform>();
@@ -558,36 +356,21 @@ public class ShinanoController : MonoBehaviour
             rect.sizeDelta = new Vector2(btnW, btnH);
             
             Image img = btn.AddComponent<Image>();
-            img.color = i == 0 ? new Color(0.4f, 0.5f, 0.6f) : new Color(0.3f, 0.3f, 0.4f);
+            img.color = i == 0 ? btnActive : btnNormal;
             
             Button button = btn.AddComponent<Button>();
             button.targetGraphic = img;
+            fsetButtons[i] = button;
+            
             int idx = i;
-            Image imgRef = img;
-            button.onClick.AddListener(() => {
-                currentFSet = idx;
-                SetAnimatorInt("F_Set", idx);
-                // Reset gestures to default when switching sets
-                SetAnimatorInt("GestureLeft", 0);
-                SetAnimatorInt("GestureRight", 0);
-                UpdateGestureLabels();
-                // Update button colors
-                foreach (var fsetBtn in parent.GetComponentsInChildren<Button>())
-                {
-                    if (fsetBtn.name.StartsWith("FSet_"))
-                    {
-                        var btnImg = fsetBtn.GetComponent<Image>();
-                        btnImg.color = fsetBtn.gameObject == btn ? new Color(0.4f, 0.5f, 0.6f) : new Color(0.3f, 0.3f, 0.4f);
-                    }
-                }
-            });
+            button.onClick.AddListener(() => SelectFSet(idx));
             
             GameObject txtObj = new GameObject("Text");
             txtObj.transform.SetParent(btn.transform, false);
-            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.sizeDelta = Vector2.zero;
+            RectTransform txtRt = txtObj.AddComponent<RectTransform>();
+            txtRt.anchorMin = Vector2.zero;
+            txtRt.anchorMax = Vector2.one;
+            txtRt.sizeDelta = Vector2.zero;
             
             Text txt = txtObj.AddComponent<Text>();
             txt.text = labels[i];
@@ -600,18 +383,22 @@ public class ShinanoController : MonoBehaviour
         y -= btnH + 8;
     }
     
-    Text[] AddGestureGrid(Transform parent, string[] labels, ref float y, System.Action<int> onClick)
+    void AddExpressionButtons(RectTransform parent, ref float y, float width)
     {
-        Text[] textRefs = new Text[labels.Length];
-        float btnW = (300f - 10) / 4 - 4;
-        float btnH = 24;
+        string[] labels = facialSets[0];
+        int cols = 4;
+        float btnW = (width - 10) / cols - 4;
+        float btnH = 28;
         
-        for (int i = 0; i < labels.Length; i++)
+        expressionButtons = new Button[8];
+        expressionLabels = new Text[8];
+        
+        for (int i = 0; i < 8; i++)
         {
-            int row = i / 4;
-            int col = i % 4;
+            int row = i / cols;
+            int col = i % cols;
             
-            GameObject btn = new GameObject("Gesture_" + i);
+            GameObject btn = new GameObject("Expr_" + i);
             btn.transform.SetParent(parent, false);
             
             RectTransform rect = btn.AddComponent<RectTransform>();
@@ -622,19 +409,24 @@ public class ShinanoController : MonoBehaviour
             rect.sizeDelta = new Vector2(btnW, btnH);
             
             Image img = btn.AddComponent<Image>();
-            img.color = new Color(0.28f + (i * 0.015f), 0.28f, 0.35f);
+            img.color = btnNormal;
             
             Button button = btn.AddComponent<Button>();
             button.targetGraphic = img;
+            expressionButtons[i] = button;
+            
             int idx = i;
-            button.onClick.AddListener(() => onClick(idx));
+            button.onClick.AddListener(() => {
+                SetAnimatorInt("GestureLeft", idx);
+                SetAnimatorInt("GestureRight", idx);
+            });
             
             GameObject txtObj = new GameObject("Text");
             txtObj.transform.SetParent(btn.transform, false);
-            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.sizeDelta = Vector2.zero;
+            RectTransform txtRt = txtObj.AddComponent<RectTransform>();
+            txtRt.anchorMin = Vector2.zero;
+            txtRt.anchorMax = Vector2.one;
+            txtRt.sizeDelta = Vector2.zero;
             
             Text txt = txtObj.AddComponent<Text>();
             txt.text = labels[i];
@@ -643,26 +435,201 @@ public class ShinanoController : MonoBehaviour
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = Color.white;
             
-            textRefs[i] = txt;
+            expressionLabels[i] = txt;
         }
         
-        int rows = (labels.Length + 3) / 4;
-        y -= rows * (btnH + 3) + 5;
-        
-        return textRefs;
+        y -= 2 * (btnH + 3) + 8;
     }
+    
+    void SelectFSet(int setIndex)
+    {
+        currentFSet = setIndex;
+        SetAnimatorInt("F_Set", setIndex);
+        
+        // Reset gestures
+        SetAnimatorInt("GestureLeft", 0);
+        SetAnimatorInt("GestureRight", 0);
+        
+        // Update button colors
+        for (int i = 0; i < fsetButtons.Length; i++)
+        {
+            var img = fsetButtons[i].GetComponent<Image>();
+            img.color = i == setIndex ? btnActive : btnNormal;
+        }
+        
+        // Update expression labels
+        string[] labels = facialSets[setIndex];
+        for (int i = 0; i < expressionLabels.Length && i < labels.Length; i++)
+        {
+            expressionLabels[i].text = labels[i];
+        }
+    }
+    
+    void AddToggleGrid(RectTransform parent, ref float y, float width, string[] labels, string[] paramNames, bool defaultOn, bool invertLogic)
+    {
+        bool[] defaults = new bool[labels.Length];
+        bool[] inverts = new bool[labels.Length];
+        for (int i = 0; i < labels.Length; i++)
+        {
+            defaults[i] = defaultOn;
+            inverts[i] = invertLogic;
+        }
+        AddToggleGrid(parent, ref y, width, labels, paramNames, defaults, inverts);
+    }
+    
+    void AddToggleGrid(RectTransform parent, ref float y, float width, string[] labels, string[] paramNames, bool[] defaults, bool[] inverts)
+    {
+        int cols = Mathf.Min(labels.Length, 5);
+        float toggleW = (width - 10) / cols - 4;
+        float toggleH = 32;
+        
+        for (int i = 0; i < labels.Length; i++)
+        {
+            int row = i / cols;
+            int col = i % cols;
+            
+            bool isOn = defaults[i];
+            
+            GameObject tog = new GameObject("Toggle_" + labels[i]);
+            tog.transform.SetParent(parent, false);
+            
+            RectTransform rect = tog.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0, 1);
+            rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(10 + col * (toggleW + 4), y - row * (toggleH + 2));
+            rect.sizeDelta = new Vector2(toggleW, toggleH);
+            
+            Image bg = tog.AddComponent<Image>();
+            bg.color = new Color(0.22f, 0.22f, 0.28f);
+            
+            // Label
+            GameObject lblObj = new GameObject("Label");
+            lblObj.transform.SetParent(tog.transform, false);
+            RectTransform lblRt = lblObj.AddComponent<RectTransform>();
+            lblRt.anchorMin = new Vector2(0, 0);
+            lblRt.anchorMax = new Vector2(0.75f, 1);
+            lblRt.offsetMin = new Vector2(4, 0);
+            lblRt.offsetMax = Vector2.zero;
+            
+            Text lbl = lblObj.AddComponent<Text>();
+            lbl.text = labels[i];
+            lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            lbl.fontSize = 10;
+            lbl.alignment = TextAnchor.MiddleLeft;
+            lbl.color = textColor;
+            
+            // Indicator
+            GameObject ind = new GameObject("Indicator");
+            ind.transform.SetParent(tog.transform, false);
+            RectTransform indRt = ind.AddComponent<RectTransform>();
+            indRt.anchorMin = new Vector2(1, 0.5f);
+            indRt.anchorMax = new Vector2(1, 0.5f);
+            indRt.pivot = new Vector2(1, 0.5f);
+            indRt.anchoredPosition = new Vector2(-4, 0);
+            indRt.sizeDelta = new Vector2(14, 14);
+            
+            Image indImg = ind.AddComponent<Image>();
+            indImg.color = isOn ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
+            
+            Toggle toggle = tog.AddComponent<Toggle>();
+            toggle.isOn = isOn;
+            toggle.graphic = indImg;
+            
+            string param = paramNames[i];
+            bool isMesh = param.StartsWith("Cloth_");
+            bool invert = inverts[i];
+            
+            toggle.onValueChanged.AddListener((val) => {
+                indImg.color = val ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
+                if (isMesh)
+                    ToggleMesh(param, val);
+                else
+                    SetAnimatorBool(param, invert ? !val : val);
+            });
+        }
+        
+        int rows = (labels.Length + cols - 1) / cols;
+        y -= rows * (toggleH + 2) + 6;
+    }
+    
+    void AddSliderRow(RectTransform parent, string label, ref float y, float width, System.Action<float> onChange, float defaultVal)
+    {
+        float labelW = 100;
+        float sliderH = 20;
+        
+        // Label
+        GameObject lblObj = new GameObject("Label_" + label);
+        lblObj.transform.SetParent(parent, false);
+        RectTransform lblRt = lblObj.AddComponent<RectTransform>();
+        lblRt.anchorMin = new Vector2(0, 1);
+        lblRt.anchorMax = new Vector2(0, 1);
+        lblRt.pivot = new Vector2(0, 1);
+        lblRt.anchoredPosition = new Vector2(10, y);
+        lblRt.sizeDelta = new Vector2(labelW, sliderH);
+        
+        Text lbl = lblObj.AddComponent<Text>();
+        lbl.text = label;
+        lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        lbl.fontSize = 11;
+        lbl.alignment = TextAnchor.MiddleLeft;
+        lbl.color = textColor;
+        
+        // Slider background
+        GameObject sliderBg = new GameObject("Slider_" + label);
+        sliderBg.transform.SetParent(parent, false);
+        RectTransform bgRt = sliderBg.AddComponent<RectTransform>();
+        bgRt.anchorMin = new Vector2(0, 1);
+        bgRt.anchorMax = new Vector2(1, 1);
+        bgRt.pivot = new Vector2(0.5f, 1);
+        bgRt.anchoredPosition = new Vector2(labelW/2, y);
+        bgRt.sizeDelta = new Vector2(-labelW - 20, 18);
+        
+        Image bgImg = sliderBg.AddComponent<Image>();
+        bgImg.color = new Color(0.18f, 0.18f, 0.22f);
+        
+        // Fill
+        GameObject fill = new GameObject("Fill");
+        fill.transform.SetParent(sliderBg.transform, false);
+        RectTransform fillRt = fill.AddComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = new Vector2(defaultVal, 1);
+        fillRt.offsetMin = Vector2.zero;
+        fillRt.offsetMax = Vector2.zero;
+        
+        Image fillImg = fill.AddComponent<Image>();
+        fillImg.color = sectionColor;
+        
+        // Handle
+        GameObject handle = new GameObject("Handle");
+        handle.transform.SetParent(sliderBg.transform, false);
+        RectTransform handleRt = handle.AddComponent<RectTransform>();
+        handleRt.anchorMin = new Vector2(defaultVal, 0);
+        handleRt.anchorMax = new Vector2(defaultVal, 1);
+        handleRt.sizeDelta = new Vector2(10, 0);
+        
+        handle.AddComponent<Image>().color = Color.white;
+        
+        Slider slider = sliderBg.AddComponent<Slider>();
+        slider.fillRect = fillRt;
+        slider.handleRect = handleRt;
+        slider.value = defaultVal;
+        slider.onValueChanged.AddListener((v) => {
+            fillRt.anchorMax = new Vector2(v, 1);
+            onChange(v);
+        });
+        
+        y -= sliderH + 8;
+    }
+    
+    // === Animator Control Methods ===
     
     void SetAnimatorInt(string param, int val)
     {
         if (characterAnimator != null)
         {
-            Debug.Log($"SetAnimatorInt: {param} = {val}");
             try { characterAnimator.SetInteger(param, val); }
-            catch { Debug.LogWarning($"Param '{param}' not found"); }
-        }
-        else
-        {
-            Debug.LogWarning($"No animator found for param '{param}'");
+            catch { Debug.LogWarning($"[Shinano] Param '{param}' not found"); }
         }
     }
     
@@ -670,13 +637,8 @@ public class ShinanoController : MonoBehaviour
     {
         if (characterAnimator != null)
         {
-            Debug.Log($"SetAnimatorBool: {param} = {val}");
             try { characterAnimator.SetBool(param, val); }
-            catch { Debug.LogWarning($"Param '{param}' not found"); }
-        }
-        else
-        {
-            Debug.LogWarning($"No animator found for param '{param}'");
+            catch { Debug.LogWarning($"[Shinano] Param '{param}' not found"); }
         }
     }
     
@@ -685,7 +647,7 @@ public class ShinanoController : MonoBehaviour
         if (characterAnimator != null)
         {
             try { characterAnimator.SetFloat(param, val); }
-            catch { Debug.LogWarning($"Param '{param}' not found"); }
+            catch { Debug.LogWarning($"[Shinano] Param '{param}' not found"); }
         }
     }
     
