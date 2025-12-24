@@ -558,8 +558,13 @@ public class ShinanoController : MonoBehaviour
     {
         if (characterAnimator != null)
         {
+            Debug.Log($"SetAnimatorInt: {param} = {val}");
             try { characterAnimator.SetInteger(param, val); }
             catch { Debug.LogWarning($"Param '{param}' not found"); }
+        }
+        else
+        {
+            Debug.LogWarning($"No animator found for param '{param}'");
         }
     }
     
@@ -567,8 +572,13 @@ public class ShinanoController : MonoBehaviour
     {
         if (characterAnimator != null)
         {
+            Debug.Log($"SetAnimatorBool: {param} = {val}");
             try { characterAnimator.SetBool(param, val); }
             catch { Debug.LogWarning($"Param '{param}' not found"); }
+        }
+        else
+        {
+            Debug.LogWarning($"No animator found for param '{param}'");
         }
     }
     
