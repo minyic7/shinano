@@ -1,13 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 /// <summary>
 /// Shinano Character Expression & Customization Controller
-/// Controls facial expressions, hand poses, costume, hair, and body features
+/// Controls facial expressions, costume, hair, and body features
 /// </summary>
 public class ShinanoController : MonoBehaviour
 {
@@ -17,12 +14,6 @@ public class ShinanoController : MonoBehaviour
     
     [Header("Camera Reference")]
     public Camera mainCamera;
-    
-    [Header("Hand Pose Assets")]
-    public AvatarMask leftHandMask;
-    public AvatarMask rightHandMask;
-    public AnimationClip[] leftHandClips;
-    public AnimationClip[] rightHandClips;
     
     [Header("UI Settings")]
     public KeyCode togglePanelKey = KeyCode.Tab;
@@ -35,8 +26,6 @@ public class ShinanoController : MonoBehaviour
     // State tracking
     private float characterRotation = 0f;
     private int currentFSet = 0;
-    private int currentLeftHandPose = 0;
-    private int currentRightHandPose = 0;
     
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
@@ -45,11 +34,10 @@ public class ShinanoController : MonoBehaviour
     
     // Expression data
     private string[] eyeEffects = { "Default", "Cheek", "Heart", "Dead", "Spiral", "Sparkle", "White", "Tear", "Sweat" };
-    private string[] handPoseNames = { "Open", "Fist", "Point", "Victory", "Rock", "Gun", "Thumb" };
     
     // F_Set 0: Joy expressions
     private string[] gestureSet0 = { "Default", "Fist", "EyeCls1", "Point", "Wink1", "Rock", "Smile1", "Joy2" };
-    // F_Set 1: Calm expressions
+    // F_Set 1: Calm expressions  
     private string[] gestureSet1 = { "Default", "Confuse", "EyeCls2", "Nagomi", "Wink2", "Zito", "Smile2", "Joy1" };
     // F_Set 2: Complex expressions
     private string[] gestureSet2 = { "Default", "Bitter", "EyeCls3", "Kyoton", "Grin", "Doya", "Smile3", "Cry" };
@@ -62,7 +50,6 @@ public class ShinanoController : MonoBehaviour
         Debug.Log("[Shinano] Controller starting...");
         FindCharacter();
         FindCamera();
-        LoadHandPoseAssets();
         CreateUI();
         Debug.Log($"[Shinano] Setup complete. Character: {(shinanoCharacter != null ? shinanoCharacter.name : "NOT FOUND")}, Animator: {(characterAnimator != null ? "OK" : "NOT FOUND")}");
     }
@@ -90,33 +77,6 @@ public class ShinanoController : MonoBehaviour
             if (mainCamera == null)
                 mainCamera = FindObjectOfType<Camera>();
         }
-    }
-    
-    void LoadHandPoseAssets()
-    {
-        #if UNITY_EDITOR
-        // Load masks
-        if (leftHandMask == null)
-            leftHandMask = AssetDatabase.LoadAssetAtPath<AvatarMask>("Assets/Shinano/Animation/Masks/LeftHand.mask");
-        if (rightHandMask == null)
-            rightHandMask = AssetDatabase.LoadAssetAtPath<AvatarMask>("Assets/Shinano/Animation/Masks/RightHand.mask");
-        
-        // Load hand pose clips
-        string[] clipNames = { "Hand open", "Fist", "Finger point", "Victory", "Rockn roll", "Hand gun", "Thums up" };
-        leftHandClips = new AnimationClip[clipNames.Length];
-        rightHandClips = new AnimationClip[clipNames.Length];
-        
-        for (int i = 0; i < clipNames.Length; i++)
-        {
-            string path = $"Assets/Shinano/Animation/Gesture/{clipNames[i]}.anim";
-            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
-            if (clip != null)
-            {
-                leftHandClips[i] = clip;
-                rightHandClips[i] = clip;
-            }
-        }
-        #endif
     }
     
     void Update()
@@ -161,7 +121,7 @@ public class ShinanoController : MonoBehaviour
             eventSystem.AddComponent<StandaloneInputModule>();
         }
         
-        // Create main panel - left side of screen, wider (400px)
+        // Create main panel - left side of screen (400px wide)
         panelRoot = new GameObject("MainPanel");
         panelRoot.transform.SetParent(canvasObj.transform, false);
         
@@ -200,15 +160,6 @@ public class ShinanoController : MonoBehaviour
         y -= 15;
         rightGestureLabels = AddGestureGrid(panelRoot.transform, GetCurrentGestureSet(), ref y, (i) => SetAnimatorInt("GestureRight", i));
         
-        // === HAND POSES ===
-        AddSectionHeader(panelRoot.transform, "🖐️ Hand Poses (Editor Only)", ref y);
-        AddLabel(panelRoot.transform, "Left Hand:", 10, y, new Color(0.7f, 0.7f, 0.8f));
-        y -= 15;
-        AddButtonGrid(panelRoot.transform, handPoseNames, 4, ref y, (i) => ApplyHandPose(true, i));
-        AddLabel(panelRoot.transform, "Right Hand:", 10, y, new Color(0.7f, 0.7f, 0.8f));
-        y -= 15;
-        AddButtonGrid(panelRoot.transform, handPoseNames, 4, ref y, (i) => ApplyHandPose(false, i));
-        
         // === COSTUME ===
         AddSectionHeader(panelRoot.transform, "👗 Costume", ref y);
         AddToggleRow(panelRoot.transform, new string[]{"Sweater","Dress","Skirt","Tights","Boots"}, ref y,
@@ -234,26 +185,6 @@ public class ShinanoController : MonoBehaviour
             if (shinanoCharacter != null)
                 shinanoCharacter.transform.rotation = Quaternion.Euler(0, characterRotation, 0);
         });
-    }
-    
-    void ApplyHandPose(bool isLeft, int poseIndex)
-    {
-        #if UNITY_EDITOR
-        if (characterAnimator == null) return;
-        
-        var clips = isLeft ? leftHandClips : rightHandClips;
-        if (clips == null || poseIndex >= clips.Length || clips[poseIndex] == null)
-        {
-            Debug.LogWarning($"[Shinano] Hand pose clip not found for index {poseIndex}");
-            return;
-        }
-        
-        // Sample the animation at time 0 (hand poses are usually single-frame)
-        clips[poseIndex].SampleAnimation(shinanoCharacter, 0);
-        Debug.Log($"[Shinano] Applied {(isLeft ? "Left" : "Right")} hand pose: {handPoseNames[poseIndex]}");
-        #else
-        Debug.Log("[Shinano] Hand poses only work in Editor mode");
-        #endif
     }
     
     // === UI BUILDING METHODS ===
@@ -282,7 +213,6 @@ public class ShinanoController : MonoBehaviour
     {
         y -= 8;
         
-        // Divider line
         GameObject divider = new GameObject("Divider");
         divider.transform.SetParent(parent, false);
         RectTransform divRect = divider.AddComponent<RectTransform>();
@@ -339,7 +269,6 @@ public class ShinanoController : MonoBehaviour
         button.targetGraphic = img;
         button.onClick.AddListener(() => onClick(idx));
         
-        // Add text
         GameObject txtObj = new GameObject("Text");
         txtObj.transform.SetParent(btn.transform, false);
         RectTransform txtRt = txtObj.AddComponent<RectTransform>();
@@ -468,7 +397,6 @@ public class ShinanoController : MonoBehaviour
         SetAnimatorInt("GestureLeft", 0);
         SetAnimatorInt("GestureRight", 0);
         
-        // Update gesture labels
         string[] newLabels = GetCurrentGestureSet();
         if (leftGestureLabels != null)
         {
@@ -481,7 +409,6 @@ public class ShinanoController : MonoBehaviour
                 rightGestureLabels[i].text = newLabels[i];
         }
         
-        // Update F_Set button colors
         for (int i = 0; i < 3; i++)
         {
             var btn = panelRoot.transform.Find("FSet_" + i);
@@ -525,7 +452,6 @@ public class ShinanoController : MonoBehaviour
             Image bg = tog.AddComponent<Image>();
             bg.color = new Color(0.2f, 0.2f, 0.25f);
             
-            // Label
             GameObject lblObj = new GameObject("Label");
             lblObj.transform.SetParent(tog.transform, false);
             RectTransform lblRt = lblObj.AddComponent<RectTransform>();
@@ -541,7 +467,6 @@ public class ShinanoController : MonoBehaviour
             lbl.alignment = TextAnchor.MiddleLeft;
             lbl.color = textColor;
             
-            // Indicator
             GameObject ind = new GameObject("Indicator");
             ind.transform.SetParent(tog.transform, false);
             RectTransform indRt = ind.AddComponent<RectTransform>();
@@ -572,7 +497,6 @@ public class ShinanoController : MonoBehaviour
     
     void AddSlider(Transform parent, string label, ref float y, System.Action<float> onChange)
     {
-        // Label
         GameObject lblObj = new GameObject("SliderLabel");
         lblObj.transform.SetParent(parent, false);
         RectTransform lblRt = lblObj.AddComponent<RectTransform>();
@@ -589,7 +513,6 @@ public class ShinanoController : MonoBehaviour
         lbl.alignment = TextAnchor.MiddleLeft;
         lbl.color = textColor;
         
-        // Slider background
         GameObject sliderBg = new GameObject("Slider");
         sliderBg.transform.SetParent(parent, false);
         RectTransform bgRt = sliderBg.AddComponent<RectTransform>();
@@ -602,7 +525,6 @@ public class ShinanoController : MonoBehaviour
         Image bgImg = sliderBg.AddComponent<Image>();
         bgImg.color = new Color(0.15f, 0.15f, 0.2f);
         
-        // Fill area
         GameObject fillArea = new GameObject("FillArea");
         fillArea.transform.SetParent(sliderBg.transform, false);
         RectTransform fillAreaRt = fillArea.AddComponent<RectTransform>();
@@ -611,7 +533,6 @@ public class ShinanoController : MonoBehaviour
         fillAreaRt.offsetMin = Vector2.zero;
         fillAreaRt.offsetMax = Vector2.zero;
         
-        // Fill
         GameObject fill = new GameObject("Fill");
         fill.transform.SetParent(fillArea.transform, false);
         RectTransform fillRt = fill.AddComponent<RectTransform>();
@@ -623,7 +544,6 @@ public class ShinanoController : MonoBehaviour
         Image fillImg = fill.AddComponent<Image>();
         fillImg.color = sectionColor;
         
-        // Handle area
         GameObject handleArea = new GameObject("HandleArea");
         handleArea.transform.SetParent(sliderBg.transform, false);
         RectTransform handleAreaRt = handleArea.AddComponent<RectTransform>();
@@ -632,7 +552,6 @@ public class ShinanoController : MonoBehaviour
         handleAreaRt.offsetMin = Vector2.zero;
         handleAreaRt.offsetMax = Vector2.zero;
         
-        // Handle
         GameObject handle = new GameObject("Handle");
         handle.transform.SetParent(handleArea.transform, false);
         RectTransform handleRt = handle.AddComponent<RectTransform>();
