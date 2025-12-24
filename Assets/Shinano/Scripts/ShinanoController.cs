@@ -22,43 +22,18 @@ public class ShinanoController : MonoBehaviour
     // UI References
     private Canvas uiCanvas;
     private GameObject panelRoot;
-    private GameObject contentRoot;
-    private ScrollRect scrollRect;
     
     // State tracking
     private float characterRotation = 0f;
     
-    // Expression names for F_Parts (0-8)
-    private string[] expressionNames = {
-        "Default", "Cheek", "Heart", "Dead", 
-        "Guruguru", "Kirakira", "White", "Tear", "Sweat"
-    };
-    
-    // Gesture names (0-7)
-    private string[] gestureNames = {
-        "Neutral", "Fist", "Open", "Point",
-        "Victory", "Rock", "Gun", "Thumbs"
-    };
-    
-    // Hair style names
-    private string[] hairStyleNames = {
-        "Default", "Style 1", "Style 2", "Style 3",
-        "Style 4", "Style 5", "Style 6", "Style 7",
-        "Style 8", "Style 9", "Style 10"
-    };
-    
-    // Facial set names
-    private string[] facialSetNames = {
-        "Set 1", "Set 2", "Set 3", "Other"
-    };
+    // Names arrays
+    private string[] expressionNames = { "Default", "Cheek", "Heart", "Dead", "Guru", "Kira", "White", "Tear", "Sweat" };
+    private string[] gestureNames = { "Idle", "Fist", "Open", "Point", "Peace", "Rock", "Gun", "Thumb" };
     
     // Colors
-    private Color panelBg = new Color(0.08f, 0.08f, 0.12f, 0.95f);
-    private Color sectionBg = new Color(0.12f, 0.12f, 0.18f, 0.9f);
-    private Color accentColor = new Color(0.6f, 0.4f, 0.8f);
+    private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
+    private Color sectionColor = new Color(0.7f, 0.5f, 0.8f);
     private Color textColor = new Color(0.9f, 0.9f, 0.95f);
-    private Color toggleOnColor = new Color(0.4f, 0.7f, 0.4f);
-    private Color toggleOffColor = new Color(0.5f, 0.3f, 0.3f);
     
     void Start()
     {
@@ -88,9 +63,7 @@ public class ShinanoController : MonoBehaviour
         {
             mainCamera = Camera.main;
             if (mainCamera == null)
-            {
                 mainCamera = FindObjectOfType<Camera>();
-            }
         }
     }
     
@@ -126,517 +99,348 @@ public class ShinanoController : MonoBehaviour
             eventSystem.AddComponent<StandaloneInputModule>();
         }
         
-        // Create main scrollable panel
-        panelRoot = CreateScrollablePanel(canvasObj.transform);
+        // Create main panel - left side of screen
+        panelRoot = new GameObject("MainPanel");
+        panelRoot.transform.SetParent(canvasObj.transform, false);
         
-        float yPos = 0;
-        
-        // Title
-        CreateTitle(contentRoot.transform, ref yPos);
-        
-        // === EXPRESSIONS SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "🎭 Expressions", ref yPos, (container) => {
-            CreateExpressionButtons(container);
-        }, 140);
-        
-        // === FACIAL SET SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "😊 Facial Sets", ref yPos, (container) => {
-            CreateButtonRow(container, facialSetNames, (index) => {
-                SetAnimatorInt("F_Set", index);
-            }, new Color(0.5f, 0.4f, 0.6f));
-        }, 50);
-        
-        // === GESTURES SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "✋ Gestures", ref yPos, (container) => {
-            CreateLabel(container, "Left Hand", 12, new Vector2(10, -5), new Vector2(100, 20), TextAnchor.MiddleLeft, textColor);
-            CreateButtonRow(container, gestureNames, (index) => {
-                SetAnimatorInt("GestureLeft", index);
-            }, new Color(0.4f, 0.5f, 0.6f), 25);
-            
-            CreateLabel(container, "Right Hand", 12, new Vector2(10, -55), new Vector2(100, 20), TextAnchor.MiddleLeft, textColor);
-            CreateButtonRow(container, gestureNames, (index) => {
-                SetAnimatorInt("GestureRight", index);
-            }, new Color(0.4f, 0.5f, 0.6f), 75);
-        }, 120);
-        
-        // === COSTUME SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "👗 Costume", ref yPos, (container) => {
-            float toggleY = -10;
-            CreateCompactToggle(container, "Sweater", true, ref toggleY, (val) => SetAnimatorBool("Sweater", !val));
-            CreateCompactToggle(container, "Dress", true, ref toggleY, (val) => SetAnimatorBool("Dress", !val));
-            CreateCompactToggle(container, "Skirt", true, ref toggleY, (val) => SetAnimatorBool("Skirt", !val));
-            CreateCompactToggle(container, "Tights", true, ref toggleY, (val) => SetAnimatorBool("Tights", !val));
-            CreateCompactToggle(container, "Boots", true, ref toggleY, (val) => SetAnimatorBool("Boots", !val));
-            CreateCompactToggle(container, "Bra", true, ref toggleY, (val) => ToggleMeshByName("Cloth_under_bra", val));
-            CreateCompactToggle(container, "Shorts", true, ref toggleY, (val) => ToggleMeshByName("Cloth_under_shorts", val));
-        }, 200);
-        
-        // === HAIR SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "💇 Hair", ref yPos, (container) => {
-            float toggleY = -10;
-            CreateCompactToggle(container, "Bangs", true, ref toggleY, (val) => SetAnimatorBool("Bangs", !val));
-            CreateCompactToggle(container, "Half-up", true, ref toggleY, (val) => SetAnimatorBool("Half", !val));
-            
-            CreateLabel(container, "Hair Length", 12, new Vector2(10, toggleY - 5), new Vector2(100, 20), TextAnchor.MiddleLeft, textColor);
-            CreateCompactSlider(container, 0.5f, toggleY - 20, (val) => SetAnimatorFloat("Length", val));
-            
-            CreateLabel(container, "Hair Style", 12, new Vector2(10, toggleY - 50), new Vector2(100, 20), TextAnchor.MiddleLeft, textColor);
-            CreateButtonRow(container, new string[]{"1","2","3","4","5","6","7","8","9","10"}, (index) => {
-                SetAnimatorInt("Hair", index);
-            }, new Color(0.6f, 0.4f, 0.5f), (int)(-toggleY + 70));
-        }, 150);
-        
-        // === BODY SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "✨ Body", ref yPos, (container) => {
-            float toggleY = -10;
-            CreateCompactToggle(container, "Ears", true, ref toggleY, (val) => SetAnimatorBool("Ear", !val));
-            CreateCompactToggle(container, "Tail", true, ref toggleY, (val) => SetAnimatorBool("Tail", !val));
-            CreateCompactToggle(container, "Backlit", false, ref toggleY, (val) => SetAnimatorBool("Backlit", val));
-            
-            CreateLabel(container, "Breast Size", 12, new Vector2(10, toggleY - 5), new Vector2(100, 20), TextAnchor.MiddleLeft, textColor);
-            CreateCompactSlider(container, 0.5f, toggleY - 20, (val) => SetAnimatorFloat("Breast", val));
-            
-            CreateLabel(container, "Hip Size", 12, new Vector2(10, toggleY - 50), new Vector2(100, 20), TextAnchor.MiddleLeft, textColor);
-            CreateCompactSlider(container, 0.5f, toggleY - 65, (val) => SetAnimatorFloat("Hip", val));
-        }, 175);
-        
-        // === AFK SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "🛋️ AFK", ref yPos, (container) => {
-            float toggleY = -10;
-            CreateCompactToggle(container, "AFK Mode", false, ref toggleY, (val) => SetAnimatorBool("AFK", val));
-        }, 45);
-        
-        // === CAMERA SECTION ===
-        CreateCollapsibleSection(contentRoot.transform, "📷 Camera", ref yPos, (container) => {
-            CreateLabel(container, "Rotate Character", 12, new Vector2(10, -10), new Vector2(150, 20), TextAnchor.MiddleLeft, textColor);
-            CreateCompactSlider(container, 0.5f, -25, (val) => {
-                characterRotation = (val - 0.5f) * 360f;
-                if (shinanoCharacter != null)
-                    shinanoCharacter.transform.rotation = Quaternion.Euler(0, characterRotation, 0);
-            });
-            
-            CreateLabel(container, "Camera Distance", 12, new Vector2(10, -55), new Vector2(150, 20), TextAnchor.MiddleLeft, textColor);
-            CreateCompactSlider(container, 0.5f, -70, (val) => {
-                if (mainCamera != null)
-                {
-                    float zDistance = Mathf.Lerp(0.5f, 5f, val);
-                    Vector3 pos = mainCamera.transform.position;
-                    pos.z = zDistance;
-                    mainCamera.transform.position = pos;
-                }
-            });
-        }, 100);
-        
-        // Set content size
-        RectTransform contentRect = contentRoot.GetComponent<RectTransform>();
-        contentRect.sizeDelta = new Vector2(contentRect.sizeDelta.x, Mathf.Abs(yPos) + 50);
-    }
-    
-    GameObject CreateScrollablePanel(Transform parent)
-    {
-        // Main panel container
-        GameObject panel = new GameObject("MainPanel");
-        panel.transform.SetParent(parent, false);
-        
-        RectTransform panelRect = panel.AddComponent<RectTransform>();
+        RectTransform panelRect = panelRoot.AddComponent<RectTransform>();
         panelRect.anchorMin = new Vector2(0, 0);
         panelRect.anchorMax = new Vector2(0, 1);
         panelRect.pivot = new Vector2(0, 0.5f);
-        panelRect.sizeDelta = new Vector2(340, 0);
         panelRect.anchoredPosition = new Vector2(10, 0);
-        panelRect.offsetMin = new Vector2(10, 20);
-        panelRect.offsetMax = new Vector2(350, -20);
+        panelRect.sizeDelta = new Vector2(320, -40);
         
-        Image panelImg = panel.AddComponent<Image>();
+        Image panelImg = panelRoot.AddComponent<Image>();
         panelImg.color = panelBg;
         
-        // Add mask for scrolling
-        panel.AddComponent<Mask>().showMaskGraphic = true;
+        float y = -10;
         
-        // Viewport
-        GameObject viewport = new GameObject("Viewport");
-        viewport.transform.SetParent(panel.transform, false);
-        RectTransform viewportRect = viewport.AddComponent<RectTransform>();
-        viewportRect.anchorMin = Vector2.zero;
-        viewportRect.anchorMax = Vector2.one;
-        viewportRect.sizeDelta = Vector2.zero;
-        viewportRect.offsetMin = new Vector2(5, 5);
-        viewportRect.offsetMax = new Vector2(-5, -5);
-        viewport.AddComponent<Image>().color = Color.clear;
-        viewport.AddComponent<Mask>().showMaskGraphic = false;
+        // Title
+        AddLabel(panelRoot.transform, "✨ Shinano Controller", 18, y, sectionColor);
+        y -= 25;
+        AddLabel(panelRoot.transform, "Press TAB to toggle", 10, y, new Color(0.6f, 0.6f, 0.6f));
+        y -= 30;
         
-        // Content container
-        contentRoot = new GameObject("Content");
-        contentRoot.transform.SetParent(viewport.transform, false);
-        RectTransform contentRect = contentRoot.AddComponent<RectTransform>();
-        contentRect.anchorMin = new Vector2(0, 1);
-        contentRect.anchorMax = new Vector2(1, 1);
-        contentRect.pivot = new Vector2(0.5f, 1);
-        contentRect.sizeDelta = new Vector2(0, 1500);
-        contentRect.anchoredPosition = Vector2.zero;
+        // === EXPRESSIONS ===
+        AddSectionHeader(panelRoot.transform, "🎭 Expressions", ref y);
+        AddButtonGrid(panelRoot.transform, expressionNames, 3, ref y, (i) => SetAnimatorInt("F_Parts", i));
         
-        // ScrollRect component
-        scrollRect = panel.AddComponent<ScrollRect>();
-        scrollRect.content = contentRect;
-        scrollRect.viewport = viewportRect;
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.scrollSensitivity = 30;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        // === FACIAL SET ===
+        AddSectionHeader(panelRoot.transform, "😊 Facial Set", ref y);
+        AddButtonGrid(panelRoot.transform, new string[]{"Set1","Set2","Set3","Other"}, 4, ref y, (i) => SetAnimatorInt("F_Set", i));
         
-        return panel;
+        // === GESTURES ===
+        AddSectionHeader(panelRoot.transform, "✋ Gestures", ref y);
+        AddLabel(panelRoot.transform, "Left:", 11, y, textColor);
+        y -= 5;
+        AddButtonGrid(panelRoot.transform, gestureNames, 4, ref y, (i) => SetAnimatorInt("GestureLeft", i));
+        AddLabel(panelRoot.transform, "Right:", 11, y, textColor);
+        y -= 5;
+        AddButtonGrid(panelRoot.transform, gestureNames, 4, ref y, (i) => SetAnimatorInt("GestureRight", i));
+        
+        // === COSTUME ===
+        AddSectionHeader(panelRoot.transform, "👗 Costume", ref y);
+        AddToggleRow(panelRoot.transform, new string[]{"Sweater","Dress","Skirt","Tights"}, ref y, 
+            new string[]{"Sweater","Dress","Skirt","Tights"}, true);
+        AddToggleRow(panelRoot.transform, new string[]{"Boots","Bra","Shorts"}, ref y, 
+            new string[]{"Boots","Cloth_under_bra","Cloth_under_shorts"}, true);
+        
+        // === HAIR ===
+        AddSectionHeader(panelRoot.transform, "💇 Hair", ref y);
+        AddToggleRow(panelRoot.transform, new string[]{"Bangs","Half-up"}, ref y, 
+            new string[]{"Bangs","Half"}, true);
+        AddSlider(panelRoot.transform, "Length", ref y, (v) => SetAnimatorFloat("Length", v));
+        AddButtonGrid(panelRoot.transform, new string[]{"1","2","3","4","5","6","7","8","9","10"}, 5, ref y, (i) => SetAnimatorInt("Hair", i));
+        
+        // === BODY ===
+        AddSectionHeader(panelRoot.transform, "✨ Body", ref y);
+        AddToggleRow(panelRoot.transform, new string[]{"Ears","Tail","Backlit","AFK"}, ref y,
+            new string[]{"Ear","Tail","Backlit","AFK"}, false);
+        AddToggleRow(panelRoot.transform, new string[]{"Big Hip"}, ref y,
+            new string[]{"Hip"}, false);
+        AddSlider(panelRoot.transform, "Breast", ref y, (v) => SetAnimatorFloat("Breast", v));
+        
+        // === CAMERA ===
+        AddSectionHeader(panelRoot.transform, "📷 Camera", ref y);
+        AddSlider(panelRoot.transform, "Rotate", ref y, (v) => {
+            characterRotation = (v - 0.5f) * 360f;
+            if (shinanoCharacter != null)
+                shinanoCharacter.transform.rotation = Quaternion.Euler(0, characterRotation, 0);
+        });
+        AddSlider(panelRoot.transform, "Distance", ref y, (v) => {
+            if (mainCamera != null)
+            {
+                Vector3 pos = mainCamera.transform.position;
+                pos.z = Mathf.Lerp(0.5f, 5f, v);
+                mainCamera.transform.position = pos;
+            }
+        });
     }
     
-    void CreateTitle(Transform parent, ref float yPos)
+    void AddLabel(Transform parent, string text, int size, float y, Color color)
     {
-        CreateLabel(parent, "Shinano Controller", 22, new Vector2(0, yPos - 15), 
-            new Vector2(300, 35), TextAnchor.MiddleCenter, accentColor);
-        CreateLabel(parent, "Press TAB to toggle", 11, new Vector2(0, yPos - 40), 
-            new Vector2(300, 20), TextAnchor.MiddleCenter, new Color(0.6f, 0.6f, 0.6f));
-        yPos -= 60;
-    }
-    
-    void CreateCollapsibleSection(Transform parent, string title, ref float yPos, 
-        System.Action<Transform> contentBuilder, float contentHeight)
-    {
-        // Section container
-        GameObject section = new GameObject("Section_" + title);
-        section.transform.SetParent(parent, false);
+        GameObject obj = new GameObject("Label");
+        obj.transform.SetParent(parent, false);
         
-        RectTransform sectionRect = section.AddComponent<RectTransform>();
-        sectionRect.anchorMin = new Vector2(0, 1);
-        sectionRect.anchorMax = new Vector2(1, 1);
-        sectionRect.pivot = new Vector2(0.5f, 1);
-        sectionRect.anchoredPosition = new Vector2(0, yPos);
-        sectionRect.sizeDelta = new Vector2(-20, contentHeight + 35);
-        
-        Image sectionImg = section.AddComponent<Image>();
-        sectionImg.color = sectionBg;
-        
-        // Section header
-        CreateLabel(section.transform, title, 14, new Vector2(10, -5), 
-            new Vector2(280, 25), TextAnchor.MiddleLeft, accentColor);
-        
-        // Divider
-        GameObject divider = new GameObject("Divider");
-        divider.transform.SetParent(section.transform, false);
-        RectTransform divRect = divider.AddComponent<RectTransform>();
-        divRect.anchorMin = new Vector2(0, 1);
-        divRect.anchorMax = new Vector2(1, 1);
-        divRect.pivot = new Vector2(0.5f, 1);
-        divRect.anchoredPosition = new Vector2(0, -28);
-        divRect.sizeDelta = new Vector2(-20, 1);
-        Image divImg = divider.AddComponent<Image>();
-        divImg.color = new Color(accentColor.r, accentColor.g, accentColor.b, 0.3f);
-        
-        // Content area
-        GameObject content = new GameObject("Content");
-        content.transform.SetParent(section.transform, false);
-        RectTransform contentRect = content.AddComponent<RectTransform>();
-        contentRect.anchorMin = new Vector2(0, 0);
-        contentRect.anchorMax = new Vector2(1, 1);
-        contentRect.pivot = new Vector2(0.5f, 1);
-        contentRect.anchoredPosition = new Vector2(0, -30);
-        contentRect.sizeDelta = new Vector2(0, -35);
-        contentRect.offsetMin = new Vector2(5, 5);
-        contentRect.offsetMax = new Vector2(-5, -35);
-        
-        // Build content
-        contentBuilder?.Invoke(content.transform);
-        
-        yPos -= contentHeight + 45;
-    }
-    
-    void CreateExpressionButtons(Transform parent)
-    {
-        float btnWidth = 60;
-        float btnHeight = 28;
-        float spacing = 4;
-        int cols = 5;
-        
-        for (int i = 0; i < expressionNames.Length; i++)
-        {
-            int row = i / cols;
-            int col = i % cols;
-            float x = 5 + col * (btnWidth + spacing);
-            float y = -5 - row * (btnHeight + spacing);
-            
-            int index = i;
-            Color btnColor = GetExpressionColor(i);
-            CreateSmallButton(parent, expressionNames[i], new Vector2(x, y), 
-                new Vector2(btnWidth, btnHeight), () => SetAnimatorInt("F_Parts", index), btnColor);
-        }
-    }
-    
-    void CreateButtonRow(Transform parent, string[] labels, System.Action<int> onClick, 
-        Color baseColor, float yOffset = 0)
-    {
-        float btnWidth = Mathf.Min(60, (300 - 20) / labels.Length - 4);
-        float btnHeight = 24;
-        float spacing = 3;
-        
-        for (int i = 0; i < labels.Length; i++)
-        {
-            float x = 5 + i * (btnWidth + spacing);
-            float y = -5 - yOffset;
-            
-            int index = i;
-            Color btnColor = new Color(baseColor.r + (i * 0.02f), baseColor.g, baseColor.b - (i * 0.01f));
-            CreateSmallButton(parent, labels[i], new Vector2(x, y), 
-                new Vector2(btnWidth, btnHeight), () => onClick(index), btnColor);
-        }
-    }
-    
-    void CreateSmallButton(Transform parent, string text, Vector2 pos, Vector2 size, 
-        System.Action onClick, Color bgColor)
-    {
-        GameObject btnObj = new GameObject("Btn_" + text);
-        btnObj.transform.SetParent(parent, false);
-        
-        RectTransform rect = btnObj.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0, 1);
-        rect.anchorMax = new Vector2(0, 1);
-        rect.pivot = new Vector2(0, 1);
-        rect.anchoredPosition = pos;
-        rect.sizeDelta = size;
-        
-        Image img = btnObj.AddComponent<Image>();
-        img.color = bgColor;
-        
-        Button btn = btnObj.AddComponent<Button>();
-        btn.targetGraphic = img;
-        ColorBlock colors = btn.colors;
-        colors.normalColor = bgColor;
-        colors.highlightedColor = bgColor * 1.3f;
-        colors.pressedColor = bgColor * 0.7f;
-        btn.colors = colors;
-        btn.onClick.AddListener(() => onClick?.Invoke());
-        
-        // Text
-        GameObject textObj = new GameObject("Text");
-        textObj.transform.SetParent(btnObj.transform, false);
-        RectTransform textRect = textObj.AddComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.sizeDelta = Vector2.zero;
-        
-        Text btnText = textObj.AddComponent<Text>();
-        btnText.text = text;
-        btnText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        btnText.fontSize = 10;
-        btnText.alignment = TextAnchor.MiddleCenter;
-        btnText.color = Color.white;
-    }
-    
-    void CreateCompactToggle(Transform parent, string label, bool defaultValue, 
-        ref float yPos, System.Action<bool> onValueChanged)
-    {
-        GameObject toggleObj = new GameObject("Toggle_" + label);
-        toggleObj.transform.SetParent(parent, false);
-        
-        RectTransform rect = toggleObj.AddComponent<RectTransform>();
+        RectTransform rect = obj.AddComponent<RectTransform>();
         rect.anchorMin = new Vector2(0, 1);
         rect.anchorMax = new Vector2(1, 1);
         rect.pivot = new Vector2(0.5f, 1);
-        rect.anchoredPosition = new Vector2(0, yPos);
-        rect.sizeDelta = new Vector2(-10, 24);
+        rect.anchoredPosition = new Vector2(0, y);
+        rect.sizeDelta = new Vector2(0, 20);
         
-        // Label
-        GameObject labelObj = new GameObject("Label");
-        labelObj.transform.SetParent(toggleObj.transform, false);
-        RectTransform labelRect = labelObj.AddComponent<RectTransform>();
-        labelRect.anchorMin = new Vector2(0, 0);
-        labelRect.anchorMax = new Vector2(0.7f, 1);
-        labelRect.offsetMin = new Vector2(5, 0);
-        labelRect.offsetMax = Vector2.zero;
-        
-        Text labelText = labelObj.AddComponent<Text>();
-        labelText.text = label;
-        labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        labelText.fontSize = 12;
-        labelText.alignment = TextAnchor.MiddleLeft;
-        labelText.color = textColor;
-        
-        // Toggle switch background
-        GameObject switchBg = new GameObject("SwitchBg");
-        switchBg.transform.SetParent(toggleObj.transform, false);
-        RectTransform switchRect = switchBg.AddComponent<RectTransform>();
-        switchRect.anchorMin = new Vector2(1, 0.5f);
-        switchRect.anchorMax = new Vector2(1, 0.5f);
-        switchRect.pivot = new Vector2(1, 0.5f);
-        switchRect.anchoredPosition = new Vector2(-5, 0);
-        switchRect.sizeDelta = new Vector2(40, 18);
-        
-        Image switchImg = switchBg.AddComponent<Image>();
-        switchImg.color = defaultValue ? toggleOnColor : toggleOffColor;
-        
-        // Toggle knob
-        GameObject knob = new GameObject("Knob");
-        knob.transform.SetParent(switchBg.transform, false);
-        RectTransform knobRect = knob.AddComponent<RectTransform>();
-        knobRect.anchorMin = new Vector2(defaultValue ? 0.5f : 0, 0);
-        knobRect.anchorMax = new Vector2(defaultValue ? 1f : 0.5f, 1);
-        knobRect.offsetMin = new Vector2(2, 2);
-        knobRect.offsetMax = new Vector2(-2, -2);
-        
-        Image knobImg = knob.AddComponent<Image>();
-        knobImg.color = Color.white;
-        
-        // Toggle component
-        Toggle toggle = toggleObj.AddComponent<Toggle>();
-        toggle.isOn = defaultValue;
-        toggle.graphic = knobImg;
-        toggle.onValueChanged.AddListener((val) => {
-            switchImg.color = val ? toggleOnColor : toggleOffColor;
-            knobRect.anchorMin = new Vector2(val ? 0.5f : 0, 0);
-            knobRect.anchorMax = new Vector2(val ? 1f : 0.5f, 1);
-            onValueChanged?.Invoke(val);
-        });
-        
-        yPos -= 28;
+        Text txt = obj.AddComponent<Text>();
+        txt.text = text;
+        txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        txt.fontSize = size;
+        txt.alignment = TextAnchor.MiddleCenter;
+        txt.color = color;
     }
     
-    void CreateCompactSlider(Transform parent, float defaultValue, float yPos,
-        System.Action<float> onValueChanged)
+    void AddSectionHeader(Transform parent, string text, ref float y)
     {
-        // Slider background
-        GameObject sliderBg = new GameObject("SliderBg");
-        sliderBg.transform.SetParent(parent, false);
-        RectTransform sliderBgRect = sliderBg.AddComponent<RectTransform>();
-        sliderBgRect.anchorMin = new Vector2(0, 1);
-        sliderBgRect.anchorMax = new Vector2(1, 1);
-        sliderBgRect.pivot = new Vector2(0.5f, 1);
-        sliderBgRect.anchoredPosition = new Vector2(0, yPos);
-        sliderBgRect.sizeDelta = new Vector2(-20, 14);
+        y -= 5;
         
-        Image sliderBgImg = sliderBg.AddComponent<Image>();
-        sliderBgImg.color = new Color(0.25f, 0.25f, 0.3f);
+        // Divider line
+        GameObject div = new GameObject("Divider");
+        div.transform.SetParent(parent, false);
+        RectTransform divRect = div.AddComponent<RectTransform>();
+        divRect.anchorMin = new Vector2(0, 1);
+        divRect.anchorMax = new Vector2(1, 1);
+        divRect.pivot = new Vector2(0.5f, 1);
+        divRect.anchoredPosition = new Vector2(0, y);
+        divRect.sizeDelta = new Vector2(-20, 1);
+        div.AddComponent<Image>().color = new Color(0.5f, 0.4f, 0.6f, 0.5f);
+        
+        y -= 8;
+        AddLabel(parent, text, 13, y, sectionColor);
+        y -= 20;
+    }
+    
+    void AddButtonGrid(Transform parent, string[] labels, int cols, ref float y, System.Action<int> onClick)
+    {
+        float btnW = (300f - 10) / cols - 4;
+        float btnH = 24;
+        
+        for (int i = 0; i < labels.Length; i++)
+        {
+            int row = i / cols;
+            int col = i % cols;
+            
+            GameObject btn = new GameObject("Btn_" + labels[i]);
+            btn.transform.SetParent(parent, false);
+            
+            RectTransform rect = btn.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0, 1);
+            rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(10 + col * (btnW + 4), y - row * (btnH + 3));
+            rect.sizeDelta = new Vector2(btnW, btnH);
+            
+            Image img = btn.AddComponent<Image>();
+            img.color = new Color(0.3f + (i * 0.02f), 0.3f, 0.4f);
+            
+            Button button = btn.AddComponent<Button>();
+            button.targetGraphic = img;
+            int idx = i;
+            button.onClick.AddListener(() => onClick(idx));
+            
+            // Text
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(btn.transform, false);
+            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
+            txtRect.anchorMin = Vector2.zero;
+            txtRect.anchorMax = Vector2.one;
+            txtRect.sizeDelta = Vector2.zero;
+            
+            Text txt = txtObj.AddComponent<Text>();
+            txt.text = labels[i];
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 11;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
+        }
+        
+        int rows = (labels.Length + cols - 1) / cols;
+        y -= rows * (btnH + 3) + 5;
+    }
+    
+    void AddToggleRow(Transform parent, string[] labels, ref float y, string[] paramNames, bool invertLogic)
+    {
+        float toggleW = (300f - 10) / labels.Length - 4;
+        
+        for (int i = 0; i < labels.Length; i++)
+        {
+            GameObject tog = new GameObject("Toggle_" + labels[i]);
+            tog.transform.SetParent(parent, false);
+            
+            RectTransform rect = tog.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0, 1);
+            rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(10 + i * (toggleW + 4), y);
+            rect.sizeDelta = new Vector2(toggleW, 28);
+            
+            Image bg = tog.AddComponent<Image>();
+            bg.color = new Color(0.25f, 0.25f, 0.3f);
+            
+            // Label
+            GameObject lblObj = new GameObject("Label");
+            lblObj.transform.SetParent(tog.transform, false);
+            RectTransform lblRect = lblObj.AddComponent<RectTransform>();
+            lblRect.anchorMin = Vector2.zero;
+            lblRect.anchorMax = new Vector2(0.7f, 1);
+            lblRect.offsetMin = new Vector2(3, 0);
+            lblRect.offsetMax = Vector2.zero;
+            
+            Text lbl = lblObj.AddComponent<Text>();
+            lbl.text = labels[i];
+            lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            lbl.fontSize = 10;
+            lbl.alignment = TextAnchor.MiddleLeft;
+            lbl.color = textColor;
+            
+            // Toggle indicator
+            GameObject ind = new GameObject("Indicator");
+            ind.transform.SetParent(tog.transform, false);
+            RectTransform indRect = ind.AddComponent<RectTransform>();
+            indRect.anchorMin = new Vector2(1, 0.5f);
+            indRect.anchorMax = new Vector2(1, 0.5f);
+            indRect.pivot = new Vector2(1, 0.5f);
+            indRect.anchoredPosition = new Vector2(-3, 0);
+            indRect.sizeDelta = new Vector2(12, 12);
+            
+            Image indImg = ind.AddComponent<Image>();
+            indImg.color = new Color(0.4f, 0.7f, 0.4f);
+            
+            Toggle toggle = tog.AddComponent<Toggle>();
+            toggle.isOn = true;
+            toggle.graphic = indImg;
+            
+            string param = paramNames[i];
+            bool isMesh = param.StartsWith("Cloth_");
+            bool invert = invertLogic;
+            
+            toggle.onValueChanged.AddListener((val) => {
+                indImg.color = val ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
+                if (isMesh)
+                    ToggleMesh(param, val);
+                else
+                    SetAnimatorBool(param, invert ? !val : val);
+            });
+        }
+        
+        y -= 33;
+    }
+    
+    void AddSlider(Transform parent, string label, ref float y, System.Action<float> onChange)
+    {
+        // Label
+        GameObject lblObj = new GameObject("Label_" + label);
+        lblObj.transform.SetParent(parent, false);
+        RectTransform lblRect = lblObj.AddComponent<RectTransform>();
+        lblRect.anchorMin = new Vector2(0, 1);
+        lblRect.anchorMax = new Vector2(0, 1);
+        lblRect.pivot = new Vector2(0, 1);
+        lblRect.anchoredPosition = new Vector2(10, y);
+        lblRect.sizeDelta = new Vector2(60, 18);
+        
+        Text lbl = lblObj.AddComponent<Text>();
+        lbl.text = label;
+        lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        lbl.fontSize = 11;
+        lbl.alignment = TextAnchor.MiddleLeft;
+        lbl.color = textColor;
+        
+        // Slider bg
+        GameObject sliderBg = new GameObject("Slider_" + label);
+        sliderBg.transform.SetParent(parent, false);
+        RectTransform bgRect = sliderBg.AddComponent<RectTransform>();
+        bgRect.anchorMin = new Vector2(0, 1);
+        bgRect.anchorMax = new Vector2(1, 1);
+        bgRect.pivot = new Vector2(0.5f, 1);
+        bgRect.anchoredPosition = new Vector2(30, y);
+        bgRect.sizeDelta = new Vector2(-80, 16);
+        
+        Image bgImg = sliderBg.AddComponent<Image>();
+        bgImg.color = new Color(0.2f, 0.2f, 0.25f);
         
         // Fill
         GameObject fill = new GameObject("Fill");
         fill.transform.SetParent(sliderBg.transform, false);
         RectTransform fillRect = fill.AddComponent<RectTransform>();
         fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = new Vector2(defaultValue, 1);
-        fillRect.sizeDelta = Vector2.zero;
+        fillRect.anchorMax = new Vector2(0.5f, 1);
         fillRect.offsetMin = Vector2.zero;
         fillRect.offsetMax = Vector2.zero;
         
         Image fillImg = fill.AddComponent<Image>();
-        fillImg.color = accentColor;
+        fillImg.color = sectionColor;
         
         // Handle
         GameObject handle = new GameObject("Handle");
         handle.transform.SetParent(sliderBg.transform, false);
         RectTransform handleRect = handle.AddComponent<RectTransform>();
-        handleRect.anchorMin = new Vector2(defaultValue, 0);
-        handleRect.anchorMax = new Vector2(defaultValue, 1);
+        handleRect.anchorMin = new Vector2(0.5f, 0);
+        handleRect.anchorMax = new Vector2(0.5f, 1);
         handleRect.sizeDelta = new Vector2(8, 0);
         
-        Image handleImg = handle.AddComponent<Image>();
-        handleImg.color = Color.white;
+        handle.AddComponent<Image>().color = Color.white;
         
-        // Slider component
         Slider slider = sliderBg.AddComponent<Slider>();
         slider.fillRect = fillRect;
         slider.handleRect = handleRect;
-        slider.minValue = 0;
-        slider.maxValue = 1;
-        slider.value = defaultValue;
-        slider.onValueChanged.AddListener((val) => {
-            fillRect.anchorMax = new Vector2(val, 1);
-            onValueChanged?.Invoke(val);
+        slider.value = 0.5f;
+        slider.onValueChanged.AddListener((v) => {
+            fillRect.anchorMax = new Vector2(v, 1);
+            onChange(v);
         });
-    }
-    
-    void CreateLabel(Transform parent, string text, int fontSize, Vector2 pos, Vector2 size, 
-        TextAnchor alignment, Color color)
-    {
-        GameObject labelObj = new GameObject("Label_" + text);
-        labelObj.transform.SetParent(parent, false);
         
-        RectTransform rect = labelObj.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0, 1);
-        rect.anchorMax = new Vector2(0, 1);
-        rect.pivot = new Vector2(0, 1);
-        rect.anchoredPosition = pos;
-        rect.sizeDelta = size;
-        
-        Text label = labelObj.AddComponent<Text>();
-        label.text = text;
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        label.fontSize = fontSize;
-        label.alignment = alignment;
-        label.color = color;
+        y -= 22;
     }
     
-    Color GetExpressionColor(int index)
-    {
-        Color[] colors = {
-            new Color(0.4f, 0.4f, 0.5f),   // Default
-            new Color(0.9f, 0.5f, 0.5f),   // Cheek
-            new Color(0.9f, 0.4f, 0.5f),   // Heart
-            new Color(0.3f, 0.3f, 0.4f),   // Dead
-            new Color(0.6f, 0.5f, 0.8f),   // Guruguru
-            new Color(0.9f, 0.8f, 0.3f),   // Kirakira
-            new Color(0.8f, 0.8f, 0.8f),   // White
-            new Color(0.4f, 0.6f, 0.9f),   // Tear
-            new Color(0.5f, 0.7f, 0.9f),   // Sweat
-        };
-        return index < colors.Length ? colors[index] : Color.gray;
-    }
+    // === Helper Methods ===
     
-    // === Animator Helper Methods ===
-    
-    void SetAnimatorInt(string paramName, int value)
+    void SetAnimatorInt(string param, int val)
     {
         if (characterAnimator != null)
         {
-            try { characterAnimator.SetInteger(paramName, value); }
-            catch { Debug.LogWarning($"Parameter '{paramName}' not found"); }
+            try { characterAnimator.SetInteger(param, val); }
+            catch { Debug.LogWarning($"Param '{param}' not found"); }
         }
     }
     
-    void SetAnimatorBool(string paramName, bool value)
+    void SetAnimatorBool(string param, bool val)
     {
         if (characterAnimator != null)
         {
-            try { characterAnimator.SetBool(paramName, value); }
-            catch { Debug.LogWarning($"Parameter '{paramName}' not found"); }
+            try { characterAnimator.SetBool(param, val); }
+            catch { Debug.LogWarning($"Param '{param}' not found"); }
         }
     }
     
-    void SetAnimatorFloat(string paramName, float value)
+    void SetAnimatorFloat(string param, float val)
     {
         if (characterAnimator != null)
         {
-            try { characterAnimator.SetFloat(paramName, value); }
-            catch { Debug.LogWarning($"Parameter '{paramName}' not found"); }
+            try { characterAnimator.SetFloat(param, val); }
+            catch { Debug.LogWarning($"Param '{param}' not found"); }
         }
     }
     
-    void ToggleMeshByName(string meshName, bool visible)
+    void ToggleMesh(string meshName, bool visible)
     {
         if (shinanoCharacter == null) return;
         
-        Transform[] allChildren = shinanoCharacter.GetComponentsInChildren<Transform>(true);
-        foreach (Transform child in allChildren)
+        foreach (Transform child in shinanoCharacter.GetComponentsInChildren<Transform>(true))
         {
             if (child.name == meshName)
             {
-                SkinnedMeshRenderer skinnedMesh = child.GetComponent<SkinnedMeshRenderer>();
-                if (skinnedMesh != null)
-                {
-                    skinnedMesh.enabled = visible;
-                    return;
-                }
+                var smr = child.GetComponent<SkinnedMeshRenderer>();
+                if (smr != null) { smr.enabled = visible; return; }
                 
-                MeshRenderer meshRenderer = child.GetComponent<MeshRenderer>();
-                if (meshRenderer != null)
-                {
-                    meshRenderer.enabled = visible;
-                    return;
-                }
+                var mr = child.GetComponent<MeshRenderer>();
+                if (mr != null) { mr.enabled = visible; return; }
                 
                 child.gameObject.SetActive(visible);
                 return;
