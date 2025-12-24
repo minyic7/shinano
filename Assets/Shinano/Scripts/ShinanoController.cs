@@ -321,7 +321,8 @@ public class ShinanoController : MonoBehaviour
         RectTransform txtRt = txtObj.AddComponent<RectTransform>();
         txtRt.anchorMin = Vector2.zero;
         txtRt.anchorMax = Vector2.one;
-        txtRt.sizeDelta = Vector2.zero;
+        txtRt.offsetMin = Vector2.zero;
+        txtRt.offsetMax = Vector2.zero;
         
         Text txt = txtObj.AddComponent<Text>();
         txt.text = label;
@@ -370,7 +371,8 @@ public class ShinanoController : MonoBehaviour
             RectTransform txtRt = txtObj.AddComponent<RectTransform>();
             txtRt.anchorMin = Vector2.zero;
             txtRt.anchorMax = Vector2.one;
-            txtRt.sizeDelta = Vector2.zero;
+            txtRt.offsetMin = Vector2.zero;
+            txtRt.offsetMax = Vector2.zero;
             
             Text txt = txtObj.AddComponent<Text>();
             txt.text = labels[i];
@@ -426,7 +428,8 @@ public class ShinanoController : MonoBehaviour
             RectTransform txtRt = txtObj.AddComponent<RectTransform>();
             txtRt.anchorMin = Vector2.zero;
             txtRt.anchorMax = Vector2.one;
-            txtRt.sizeDelta = Vector2.zero;
+            txtRt.offsetMin = Vector2.zero;
+            txtRt.offsetMax = Vector2.zero;
             
             Text txt = txtObj.AddComponent<Text>();
             txt.text = labels[i];
