@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.Playables;
+using UnityEngine.Animations;
 
 /// <summary>
 /// Shinano Character Expression & Customization Controller
@@ -14,6 +16,9 @@ public class ShinanoController : MonoBehaviour
     
     [Header("Camera Reference")]
     public Camera mainCamera;
+    
+    [Header("Gesture Animations")]
+    public AnimationClip[] handPoseClips;
     
     [Header("UI Settings")]
     public KeyCode togglePanelKey = KeyCode.Tab;
@@ -46,11 +51,79 @@ public class ShinanoController : MonoBehaviour
     private Text[] leftGestureLabels;
     private Text[] rightGestureLabels;
     
+    // Hand pose playables
+    private PlayableGraph handPoseGraph;
+    private AnimationMixerPlayable handMixer;
+    private AnimationClipPlayable[] handPosePlayables;
+    private string[] handPoseNames = { "Open", "Fist", "Point", "Victory", "Rock", "Gun", "Thumb" };
+    
     void Start()
     {
         FindCharacter();
         FindCamera();
+        LoadHandPoseClips();
+        SetupHandPosePlayables();
         CreateUI();
+    }
+    
+    void LoadHandPoseClips()
+    {
+        // Load hand pose clips from Resources or by path
+        handPoseClips = new AnimationClip[7];
+        string[] clipNames = { "Hand open", "Fist", "Finger point", "Victory", "Rockn roll", "Hand gun", "Thums up" };
+        
+        for (int i = 0; i < clipNames.Length; i++)
+        {
+            string path = $"Assets/Shinano/Animation/Gesture/{clipNames[i]}.anim";
+            #if UNITY_EDITOR
+            handPoseClips[i] = UnityEditor.AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+            if (handPoseClips[i] != null)
+                Debug.Log($"Loaded hand pose: {clipNames[i]}");
+            else
+                Debug.LogWarning($"Failed to load: {path}");
+            #endif
+        }
+    }
+    
+    void SetupHandPosePlayables()
+    {
+        if (characterAnimator == null) return;
+        
+        // Create playable graph for hand poses
+        handPoseGraph = PlayableGraph.Create("HandPoseGraph");
+        handPoseGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+        
+        // Create mixer
+        int clipCount = handPoseClips != null ? handPoseClips.Length : 0;
+        if (clipCount == 0) return;
+        
+        handMixer = AnimationMixerPlayable.Create(handPoseGraph, clipCount + 1);
+        handPosePlayables = new AnimationClipPlayable[clipCount];
+        
+        for (int i = 0; i < clipCount; i++)
+        {
+            if (handPoseClips[i] != null)
+            {
+                handPosePlayables[i] = AnimationClipPlayable.Create(handPoseGraph, handPoseClips[i]);
+                handPoseGraph.Connect(handPosePlayables[i], 0, handMixer, i + 1);
+            }
+        }
+        
+        // Create output and play
+        var output = AnimationPlayableOutput.Create(handPoseGraph, "HandPose", characterAnimator);
+        output.SetSourcePlayable(handMixer);
+        
+        // Start with all weights at 0
+        for (int i = 0; i <= clipCount; i++)
+            handMixer.SetInputWeight(i, 0f);
+            
+        handPoseGraph.Play();
+    }
+    
+    void OnDestroy()
+    {
+        if (handPoseGraph.IsValid())
+            handPoseGraph.Destroy();
     }
     
     void FindCharacter()
@@ -188,6 +261,31 @@ public class ShinanoController : MonoBehaviour
                 mainCamera.transform.position = pos;
             }
         });
+        
+        // === HAND POSES ===
+        AddSectionHeader(panelRoot.transform, "✋ Hand Poses", ref y);
+        AddLabel(panelRoot.transform, "(Layered on top of current animation)", 9, y, new Color(0.6f, 0.6f, 0.7f));
+        y -= 12;
+        string[] poseLabels = { "None", "Open", "Fist", "Point", "Peace", "Rock", "Gun", "Thumb" };
+        AddButtonGrid(panelRoot.transform, poseLabels, 4, ref y, (i) => PlayHandPose(i - 1));
+    }
+    
+    void PlayHandPose(int poseIndex)
+    {
+        if (!handPoseGraph.IsValid() || handPosePlayables == null) return;
+        
+        Debug.Log($"Playing hand pose: {poseIndex}");
+        
+        // Set all weights to 0
+        int count = handPosePlayables.Length;
+        for (int i = 0; i <= count; i++)
+            handMixer.SetInputWeight(i, 0f);
+        
+        // If poseIndex < 0, we're setting to "None" (no hand pose overlay)
+        if (poseIndex >= 0 && poseIndex < count && handPosePlayables[poseIndex].IsValid())
+        {
+            handMixer.SetInputWeight(poseIndex + 1, 1f);
+        }
     }
     
     void AddLabel(Transform parent, string text, int size, float y, Color color)
