@@ -28,12 +28,23 @@ public class ShinanoController : MonoBehaviour
     
     // Names arrays
     private string[] expressionNames = { "Default", "Cheek", "Heart", "Dead", "Guru", "Kira", "White", "Tear", "Sweat" };
-    private string[] gestureNames = { "Idle", "Fist", "Open", "Point", "Peace", "Rock", "Gun", "Thumb" };
+    
+    // F_Set 0: Joy type expressions
+    private string[] gestureSet0 = { "Default", "Fist", "EyeCls1", "Point", "Wink1", "Rock", "Smile1", "Joy2" };
+    // F_Set 1: Calm type expressions
+    private string[] gestureSet1 = { "Default", "Confuse", "EyeCls2", "Nagomi", "Wink2", "Zito", "Smile2", "Joy1" };
+    // F_Set 2: Complex type expressions
+    private string[] gestureSet2 = { "Default", "Bitter", "EyeCls3", "Kyoton", "Grin", "Doya", "Smile3", "Cry" };
     
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
     private Color sectionColor = new Color(0.7f, 0.5f, 0.8f);
     private Color textColor = new Color(0.9f, 0.9f, 0.95f);
+    
+    // State
+    private int currentFSet = 0;
+    private Text[] leftGestureLabels;
+    private Text[] rightGestureLabels;
     
     void Start()
     {
@@ -126,17 +137,19 @@ public class ShinanoController : MonoBehaviour
         AddButtonGrid(panelRoot.transform, expressionNames, 3, ref y, (i) => SetAnimatorInt("F_Parts", i));
         
         // === FACIAL SET ===
-        AddSectionHeader(panelRoot.transform, "😊 Facial Set", ref y);
-        AddButtonGrid(panelRoot.transform, new string[]{"Set1","Set2","Set3","Other"}, 4, ref y, (i) => SetAnimatorInt("F_Set", i));
+        AddSectionHeader(panelRoot.transform, "😊 Facial Set (Select First!)", ref y);
+        AddLabel(panelRoot.transform, "Joy / Calm / Complex", 10, y, new Color(0.6f, 0.6f, 0.7f));
+        y -= 15;
+        AddFSetButtons(panelRoot.transform, ref y);
         
-        // === GESTURES ===
-        AddSectionHeader(panelRoot.transform, "✋ Gestures", ref y);
-        AddLabel(panelRoot.transform, "Left:", 11, y, textColor);
-        y -= 5;
-        AddButtonGrid(panelRoot.transform, gestureNames, 4, ref y, (i) => SetAnimatorInt("GestureLeft", i));
-        AddLabel(panelRoot.transform, "Right:", 11, y, textColor);
-        y -= 5;
-        AddButtonGrid(panelRoot.transform, gestureNames, 4, ref y, (i) => SetAnimatorInt("GestureRight", i));
+        // === FACIAL GESTURES ===
+        AddSectionHeader(panelRoot.transform, "👁️ Facial Expressions", ref y);
+        AddLabel(panelRoot.transform, "Left Hand Trigger:", 10, y, new Color(0.7f, 0.7f, 0.8f));
+        y -= 15;
+        leftGestureLabels = AddGestureGrid(panelRoot.transform, GetCurrentGestureSet(), ref y, (i) => SetAnimatorInt("GestureLeft", i));
+        AddLabel(panelRoot.transform, "Right Hand Trigger:", 10, y, new Color(0.7f, 0.7f, 0.8f));
+        y -= 15;
+        rightGestureLabels = AddGestureGrid(panelRoot.transform, GetCurrentGestureSet(), ref y, (i) => SetAnimatorInt("GestureRight", i));
         
         // === COSTUME ===
         AddSectionHeader(panelRoot.transform, "👗 Costume", ref y);
@@ -402,6 +415,141 @@ public class ShinanoController : MonoBehaviour
     }
     
     // === Helper Methods ===
+    
+    string[] GetCurrentGestureSet()
+    {
+        switch (currentFSet)
+        {
+            case 1: return gestureSet1;
+            case 2: return gestureSet2;
+            default: return gestureSet0;
+        }
+    }
+    
+    void UpdateGestureLabels()
+    {
+        string[] labels = GetCurrentGestureSet();
+        if (leftGestureLabels != null)
+        {
+            for (int i = 0; i < leftGestureLabels.Length && i < labels.Length; i++)
+                if (leftGestureLabels[i] != null) leftGestureLabels[i].text = labels[i];
+        }
+        if (rightGestureLabels != null)
+        {
+            for (int i = 0; i < rightGestureLabels.Length && i < labels.Length; i++)
+                if (rightGestureLabels[i] != null) rightGestureLabels[i].text = labels[i];
+        }
+    }
+    
+    void AddFSetButtons(Transform parent, ref float y)
+    {
+        string[] labels = { "Joy", "Calm", "Complex" };
+        float btnW = (300f - 10) / 3 - 4;
+        float btnH = 26;
+        
+        for (int i = 0; i < labels.Length; i++)
+        {
+            GameObject btn = new GameObject("FSet_" + labels[i]);
+            btn.transform.SetParent(parent, false);
+            
+            RectTransform rect = btn.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0, 1);
+            rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(10 + i * (btnW + 4), y);
+            rect.sizeDelta = new Vector2(btnW, btnH);
+            
+            Image img = btn.AddComponent<Image>();
+            img.color = i == 0 ? new Color(0.4f, 0.5f, 0.6f) : new Color(0.3f, 0.3f, 0.4f);
+            
+            Button button = btn.AddComponent<Button>();
+            button.targetGraphic = img;
+            int idx = i;
+            Image imgRef = img;
+            button.onClick.AddListener(() => {
+                currentFSet = idx;
+                SetAnimatorInt("F_Set", idx);
+                UpdateGestureLabels();
+                // Update button colors
+                foreach (var fsetBtn in parent.GetComponentsInChildren<Button>())
+                {
+                    if (fsetBtn.name.StartsWith("FSet_"))
+                    {
+                        var btnImg = fsetBtn.GetComponent<Image>();
+                        btnImg.color = fsetBtn.gameObject == btn ? new Color(0.4f, 0.5f, 0.6f) : new Color(0.3f, 0.3f, 0.4f);
+                    }
+                }
+            });
+            
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(btn.transform, false);
+            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
+            txtRect.anchorMin = Vector2.zero;
+            txtRect.anchorMax = Vector2.one;
+            txtRect.sizeDelta = Vector2.zero;
+            
+            Text txt = txtObj.AddComponent<Text>();
+            txt.text = labels[i];
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 12;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
+        }
+        
+        y -= btnH + 8;
+    }
+    
+    Text[] AddGestureGrid(Transform parent, string[] labels, ref float y, System.Action<int> onClick)
+    {
+        Text[] textRefs = new Text[labels.Length];
+        float btnW = (300f - 10) / 4 - 4;
+        float btnH = 24;
+        
+        for (int i = 0; i < labels.Length; i++)
+        {
+            int row = i / 4;
+            int col = i % 4;
+            
+            GameObject btn = new GameObject("Gesture_" + i);
+            btn.transform.SetParent(parent, false);
+            
+            RectTransform rect = btn.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0, 1);
+            rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(10 + col * (btnW + 4), y - row * (btnH + 3));
+            rect.sizeDelta = new Vector2(btnW, btnH);
+            
+            Image img = btn.AddComponent<Image>();
+            img.color = new Color(0.28f + (i * 0.015f), 0.28f, 0.35f);
+            
+            Button button = btn.AddComponent<Button>();
+            button.targetGraphic = img;
+            int idx = i;
+            button.onClick.AddListener(() => onClick(idx));
+            
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(btn.transform, false);
+            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
+            txtRect.anchorMin = Vector2.zero;
+            txtRect.anchorMax = Vector2.one;
+            txtRect.sizeDelta = Vector2.zero;
+            
+            Text txt = txtObj.AddComponent<Text>();
+            txt.text = labels[i];
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 10;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
+            
+            textRefs[i] = txt;
+        }
+        
+        int rows = (labels.Length + 3) / 4;
+        y -= rows * (btnH + 3) + 5;
+        
+        return textRefs;
+    }
     
     void SetAnimatorInt(string param, int val)
     {
