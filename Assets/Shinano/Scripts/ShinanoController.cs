@@ -59,10 +59,12 @@ public class ShinanoController : MonoBehaviour
     
     void Start()
     {
+        Debug.Log("[Shinano] Controller starting...");
         FindCharacter();
         FindCamera();
         LoadHandPoseAssets();
         CreateUI();
+        Debug.Log($"[Shinano] Setup complete. Character: {(shinanoCharacter != null ? shinanoCharacter.name : "NOT FOUND")}, Animator: {(characterAnimator != null ? "OK" : "NOT FOUND")}");
     }
     
     void FindCharacter()
@@ -653,28 +655,34 @@ public class ShinanoController : MonoBehaviour
     
     void SetAnimatorInt(string param, int val)
     {
-        if (characterAnimator != null)
+        if (characterAnimator == null)
         {
-            try { characterAnimator.SetInteger(param, val); }
-            catch { Debug.LogWarning($"[Shinano] Int param '{param}' not found"); }
+            Debug.LogError($"[Shinano] No animator found! Cannot set {param}={val}");
+            return;
         }
+        characterAnimator.SetInteger(param, val);
+        Debug.Log($"[Shinano] SetInt {param}={val}");
     }
     
     void SetAnimatorBool(string param, bool val)
     {
-        if (characterAnimator != null)
+        if (characterAnimator == null)
         {
-            try { characterAnimator.SetBool(param, val); }
-            catch { Debug.LogWarning($"[Shinano] Bool param '{param}' not found"); }
+            Debug.LogError($"[Shinano] No animator found! Cannot set {param}={val}");
+            return;
         }
+        characterAnimator.SetBool(param, val);
+        Debug.Log($"[Shinano] SetBool {param}={val}");
     }
     
     void SetAnimatorFloat(string param, float val)
     {
-        if (characterAnimator != null)
+        if (characterAnimator == null)
         {
-            try { characterAnimator.SetFloat(param, val); }
-            catch { Debug.LogWarning($"[Shinano] Float param '{param}' not found"); }
+            Debug.LogError($"[Shinano] No animator found! Cannot set {param}={val}");
+            return;
         }
+        characterAnimator.SetFloat(param, val);
+        Debug.Log($"[Shinano] SetFloat {param}={val}");
     }
 }
