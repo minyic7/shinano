@@ -40,6 +40,8 @@ public class ShinanoController : MonoBehaviour
     private bool skirtOn = true;
     private bool tightsOn = true;
     private bool bootsOn = true;
+    private bool braOn = true;
+    private bool shortsOn = true;
     
     // Body features
     private bool earOn = true;
@@ -198,6 +200,16 @@ public class ShinanoController : MonoBehaviour
             SetAnimatorBool("Boots", !val);
         });
         
+        CreateToggle(panelRoot.transform, "Bra", braOn, ref yPos, (val) => {
+            braOn = val;
+            ToggleMeshByName("Cloth_under_bra", val);
+        });
+        
+        CreateToggle(panelRoot.transform, "Shorts", shortsOn, ref yPos, (val) => {
+            shortsOn = val;
+            ToggleMeshByName("Cloth_under_shorts", val);
+        });
+        
         // === BODY SECTION ===
         yPos -= 20;
         CreateSectionHeader(panelRoot.transform, "✨ Body Features", ref yPos);
@@ -289,6 +301,44 @@ public class ShinanoController : MonoBehaviour
         {
             characterAnimator.SetFloat(paramName, value);
         }
+    }
+    
+    void ToggleMeshByName(string meshName, bool visible)
+    {
+        if (shinanoCharacter == null) return;
+        
+        // Find the mesh by name in all children
+        Transform[] allChildren = shinanoCharacter.GetComponentsInChildren<Transform>(true);
+        foreach (Transform child in allChildren)
+        {
+            if (child.name == meshName)
+            {
+                // Try SkinnedMeshRenderer first
+                SkinnedMeshRenderer skinnedMesh = child.GetComponent<SkinnedMeshRenderer>();
+                if (skinnedMesh != null)
+                {
+                    skinnedMesh.enabled = visible;
+                    Debug.Log($"Toggled SkinnedMeshRenderer '{meshName}' to {visible}");
+                    return;
+                }
+                
+                // Try MeshRenderer
+                MeshRenderer meshRenderer = child.GetComponent<MeshRenderer>();
+                if (meshRenderer != null)
+                {
+                    meshRenderer.enabled = visible;
+                    Debug.Log($"Toggled MeshRenderer '{meshName}' to {visible}");
+                    return;
+                }
+                
+                // Fallback: toggle the GameObject itself
+                child.gameObject.SetActive(visible);
+                Debug.Log($"Toggled GameObject '{meshName}' to {visible}");
+                return;
+            }
+        }
+        
+        Debug.LogWarning($"Mesh '{meshName}' not found in character hierarchy");
     }
     
     // ==================== UI HELPER METHODS ====================
