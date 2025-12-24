@@ -469,6 +469,9 @@ public class ShinanoController : MonoBehaviour
             button.onClick.AddListener(() => {
                 currentFSet = idx;
                 SetAnimatorInt("F_Set", idx);
+                // Reset gestures to default when switching sets
+                SetAnimatorInt("GestureLeft", 0);
+                SetAnimatorInt("GestureRight", 0);
                 UpdateGestureLabels();
                 // Update button colors
                 foreach (var fsetBtn in parent.GetComponentsInChildren<Button>())
