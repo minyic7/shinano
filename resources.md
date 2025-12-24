@@ -137,6 +137,24 @@ Advanced toon shader for anime-style rendering.
 
 ---
 
+## 🎮 Scripts
+
+### ShinanoController
+Location: `Assets/Shinano/Scripts/ShinanoController.cs`
+
+A beautiful UI control panel for the Shinano character with:
+- **Expression buttons** (9 expressions: Default, Cheek, Heart Eye, Dead Eye, etc.)
+- **Costume toggles** (Sweater, Dress, Skirt, Tights, Boots)
+- **Body feature toggles** (Ears, Tail)
+- **Sliders** (Breast Size, Hair Length)
+
+**Usage:**
+1. Add to any GameObject in the scene
+2. Assign the Shinano character reference (auto-detects if named "Shinano")
+3. Press **TAB** to toggle panel visibility
+
+---
+
 ## 📄 License
 
 Please refer to individual asset licenses within the project.
