@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
 /// Shinano Character Expression & Customization Controller
-/// Controls facial expressions, costume, hair, and body features
+/// Controls facial expressions, hand poses, costume, hair, and body features
 /// </summary>
 public class ShinanoController : MonoBehaviour
 {
@@ -14,6 +17,12 @@ public class ShinanoController : MonoBehaviour
     
     [Header("Camera Reference")]
     public Camera mainCamera;
+    
+    [Header("Hand Pose Assets")]
+    public AvatarMask leftHandMask;
+    public AvatarMask rightHandMask;
+    public AnimationClip[] leftHandClips;
+    public AnimationClip[] rightHandClips;
     
     [Header("UI Settings")]
     public KeyCode togglePanelKey = KeyCode.Tab;
@@ -26,6 +35,8 @@ public class ShinanoController : MonoBehaviour
     // State tracking
     private float characterRotation = 0f;
     private int currentFSet = 0;
+    private int currentLeftHandPose = 0;
+    private int currentRightHandPose = 0;
     
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
@@ -34,6 +45,7 @@ public class ShinanoController : MonoBehaviour
     
     // Expression data
     private string[] eyeEffects = { "Default", "Cheek", "Heart", "Dead", "Spiral", "Sparkle", "White", "Tear", "Sweat" };
+    private string[] handPoseNames = { "Open", "Fist", "Point", "Victory", "Rock", "Gun", "Thumb" };
     
     // F_Set 0: Joy expressions
     private string[] gestureSet0 = { "Default", "Fist", "EyeCls1", "Point", "Wink1", "Rock", "Smile1", "Joy2" };
@@ -49,6 +61,7 @@ public class ShinanoController : MonoBehaviour
     {
         FindCharacter();
         FindCamera();
+        LoadHandPoseAssets();
         CreateUI();
     }
     
@@ -75,6 +88,33 @@ public class ShinanoController : MonoBehaviour
             if (mainCamera == null)
                 mainCamera = FindObjectOfType<Camera>();
         }
+    }
+    
+    void LoadHandPoseAssets()
+    {
+        #if UNITY_EDITOR
+        // Load masks
+        if (leftHandMask == null)
+            leftHandMask = AssetDatabase.LoadAssetAtPath<AvatarMask>("Assets/Shinano/Animation/Masks/LeftHand.mask");
+        if (rightHandMask == null)
+            rightHandMask = AssetDatabase.LoadAssetAtPath<AvatarMask>("Assets/Shinano/Animation/Masks/RightHand.mask");
+        
+        // Load hand pose clips
+        string[] clipNames = { "Hand open", "Fist", "Finger point", "Victory", "Rockn roll", "Hand gun", "Thums up" };
+        leftHandClips = new AnimationClip[clipNames.Length];
+        rightHandClips = new AnimationClip[clipNames.Length];
+        
+        for (int i = 0; i < clipNames.Length; i++)
+        {
+            string path = $"Assets/Shinano/Animation/Gesture/{clipNames[i]}.anim";
+            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+            if (clip != null)
+            {
+                leftHandClips[i] = clip;
+                rightHandClips[i] = clip;
+            }
+        }
+        #endif
     }
     
     void Update()
@@ -119,7 +159,7 @@ public class ShinanoController : MonoBehaviour
             eventSystem.AddComponent<StandaloneInputModule>();
         }
         
-        // Create main panel - left side of screen, wider (380px)
+        // Create main panel - left side of screen, wider (400px)
         panelRoot = new GameObject("MainPanel");
         panelRoot.transform.SetParent(canvasObj.transform, false);
         
@@ -128,7 +168,7 @@ public class ShinanoController : MonoBehaviour
         panelRect.anchorMax = new Vector2(0, 1);
         panelRect.pivot = new Vector2(0, 0.5f);
         panelRect.anchoredPosition = new Vector2(10, 0);
-        panelRect.sizeDelta = new Vector2(380, -40);
+        panelRect.sizeDelta = new Vector2(400, -40);
         
         Image panelImg = panelRoot.AddComponent<Image>();
         panelImg.color = panelBg;
@@ -138,7 +178,7 @@ public class ShinanoController : MonoBehaviour
         // Title
         AddLabel(panelRoot.transform, "✨ Shinano Controller", 18, y, sectionColor);
         y -= 25;
-        AddLabel(panelRoot.transform, "Press TAB to toggle", 10, y, new Color(0.6f, 0.6f, 0.6f));
+        AddLabel(panelRoot.transform, "Press TAB to toggle panel", 10, y, new Color(0.6f, 0.6f, 0.6f));
         y -= 30;
         
         // === EYE EFFECTS ===
@@ -146,17 +186,26 @@ public class ShinanoController : MonoBehaviour
         AddButtonGrid(panelRoot.transform, eyeEffects, 5, ref y, (i) => SetAnimatorInt("F_Parts", i));
         
         // === FACIAL SET ===
-        AddSectionHeader(panelRoot.transform, "😊 Facial Set", ref y);
+        AddSectionHeader(panelRoot.transform, "😊 Expression Style", ref y);
         AddFSetButtons(panelRoot.transform, ref y);
         
-        // === EXPRESSIONS ===
-        AddSectionHeader(panelRoot.transform, "🎭 Expressions", ref y);
-        AddLabel(panelRoot.transform, "Left:", 10, y, new Color(0.7f, 0.7f, 0.8f));
+        // === FACIAL EXPRESSIONS ===
+        AddSectionHeader(panelRoot.transform, "🎭 Facial Expressions", ref y);
+        AddLabel(panelRoot.transform, "Left Trigger:", 10, y, new Color(0.7f, 0.7f, 0.8f));
         y -= 15;
         leftGestureLabels = AddGestureGrid(panelRoot.transform, GetCurrentGestureSet(), ref y, (i) => SetAnimatorInt("GestureLeft", i));
-        AddLabel(panelRoot.transform, "Right:", 10, y, new Color(0.7f, 0.7f, 0.8f));
+        AddLabel(panelRoot.transform, "Right Trigger:", 10, y, new Color(0.7f, 0.7f, 0.8f));
         y -= 15;
         rightGestureLabels = AddGestureGrid(panelRoot.transform, GetCurrentGestureSet(), ref y, (i) => SetAnimatorInt("GestureRight", i));
+        
+        // === HAND POSES ===
+        AddSectionHeader(panelRoot.transform, "🖐️ Hand Poses (Editor Only)", ref y);
+        AddLabel(panelRoot.transform, "Left Hand:", 10, y, new Color(0.7f, 0.7f, 0.8f));
+        y -= 15;
+        AddButtonGrid(panelRoot.transform, handPoseNames, 4, ref y, (i) => ApplyHandPose(true, i));
+        AddLabel(panelRoot.transform, "Right Hand:", 10, y, new Color(0.7f, 0.7f, 0.8f));
+        y -= 15;
+        AddButtonGrid(panelRoot.transform, handPoseNames, 4, ref y, (i) => ApplyHandPose(false, i));
         
         // === COSTUME ===
         AddSectionHeader(panelRoot.transform, "👗 Costume", ref y);
@@ -183,6 +232,26 @@ public class ShinanoController : MonoBehaviour
             if (shinanoCharacter != null)
                 shinanoCharacter.transform.rotation = Quaternion.Euler(0, characterRotation, 0);
         });
+    }
+    
+    void ApplyHandPose(bool isLeft, int poseIndex)
+    {
+        #if UNITY_EDITOR
+        if (characterAnimator == null) return;
+        
+        var clips = isLeft ? leftHandClips : rightHandClips;
+        if (clips == null || poseIndex >= clips.Length || clips[poseIndex] == null)
+        {
+            Debug.LogWarning($"[Shinano] Hand pose clip not found for index {poseIndex}");
+            return;
+        }
+        
+        // Sample the animation at time 0 (hand poses are usually single-frame)
+        clips[poseIndex].SampleAnimation(shinanoCharacter, 0);
+        Debug.Log($"[Shinano] Applied {(isLeft ? "Left" : "Right")} hand pose: {handPoseNames[poseIndex]}");
+        #else
+        Debug.Log("[Shinano] Hand poses only work in Editor mode");
+        #endif
     }
     
     // === UI BUILDING METHODS ===
@@ -229,7 +298,7 @@ public class ShinanoController : MonoBehaviour
     
     void AddButtonGrid(Transform parent, string[] labels, int cols, ref float y, System.Action<int> onClick)
     {
-        float btnW = 70;
+        float btnW = 75;
         float btnH = 26;
         float spacing = 4;
         float startX = 10;
@@ -288,7 +357,7 @@ public class ShinanoController : MonoBehaviour
     void AddFSetButtons(Transform parent, ref float y)
     {
         string[] labels = { "Joy", "Calm", "Complex" };
-        float btnW = 100;
+        float btnW = 110;
         float spacing = 8;
         float startX = 20;
         
@@ -334,7 +403,7 @@ public class ShinanoController : MonoBehaviour
     Text[] AddGestureGrid(Transform parent, string[] labels, ref float y, System.Action<int> onClick)
     {
         Text[] textLabels = new Text[labels.Length];
-        float btnW = 85;
+        float btnW = 90;
         float btnH = 24;
         float spacing = 3;
         int cols = 4;
@@ -411,17 +480,13 @@ public class ShinanoController : MonoBehaviour
         }
         
         // Update F_Set button colors
-        var fsetBtns = panelRoot.transform.Find("FSet_0")?.parent;
-        if (fsetBtns != null)
+        for (int i = 0; i < 3; i++)
         {
-            for (int i = 0; i < 3; i++)
+            var btn = panelRoot.transform.Find("FSet_" + i);
+            if (btn != null)
             {
-                var btn = panelRoot.transform.Find("FSet_" + i);
-                if (btn != null)
-                {
-                    var img = btn.GetComponent<Image>();
-                    img.color = i == setIndex ? new Color(0.4f, 0.5f, 0.6f) : new Color(0.25f, 0.25f, 0.3f);
-                }
+                var img = btn.GetComponent<Image>();
+                img.color = i == setIndex ? new Color(0.4f, 0.5f, 0.6f) : new Color(0.25f, 0.25f, 0.3f);
             }
         }
     }
@@ -436,7 +501,7 @@ public class ShinanoController : MonoBehaviour
     
     void AddToggleRow(Transform parent, string[] labels, ref float y, string[] paramNames, bool[] defaults, bool[] inverts)
     {
-        float toggleW = 70;
+        float toggleW = 75;
         float spacing = 4;
         float startX = 10;
         
