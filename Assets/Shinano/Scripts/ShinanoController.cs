@@ -140,24 +140,24 @@ public class ShinanoController : MonoBehaviour
         
         // === COSTUME ===
         AddSectionHeader(panelRoot.transform, "👗 Costume", ref y);
-        AddToggleRow(panelRoot.transform, new string[]{"Sweater","Dress","Skirt","Tights"}, ref y, 
-            new string[]{"Sweater","Dress","Skirt","Tights"}, true);
-        AddToggleRow(panelRoot.transform, new string[]{"Boots","Bra","Shorts"}, ref y, 
-            new string[]{"Boots","Cloth_under_bra","Cloth_under_shorts"}, true);
+        AddToggleRow(panelRoot.transform, new string[]{"Sweater","Dress","Skirt","Tights"}, ref y,
+            new string[]{"Sweater","Dress","Skirt","Tights"}, new bool[]{true,true,true,true}, true);
+        AddToggleRow(panelRoot.transform, new string[]{"Boots","Bra","Shorts"}, ref y,
+            new string[]{"Boots","Cloth_under_bra","Cloth_under_shorts"}, new bool[]{true,true,true}, true);
         
         // === HAIR ===
         AddSectionHeader(panelRoot.transform, "💇 Hair", ref y);
-        AddToggleRow(panelRoot.transform, new string[]{"Bangs","Half-up"}, ref y, 
-            new string[]{"Bangs","Half"}, true);
+        AddToggleRow(panelRoot.transform, new string[]{"Bangs","Half-up"}, ref y,
+            new string[]{"Bangs","Half"}, new bool[]{true, true}, true);
         AddSlider(panelRoot.transform, "Length", ref y, (v) => SetAnimatorFloat("Length", v));
-        AddButtonGrid(panelRoot.transform, new string[]{"1","2","3","4","5","6","7","8","9","10"}, 5, ref y, (i) => SetAnimatorInt("Hair", i));
+        AddButtonGrid(panelRoot.transform, new string[]{"Default","Braid","Side L","Side R","All"}, 5, ref y, (i) => SetAnimatorInt("Hair", i));
         
         // === BODY ===
         AddSectionHeader(panelRoot.transform, "✨ Body", ref y);
-        AddToggleRow(panelRoot.transform, new string[]{"Ears","Tail","Backlit","AFK"}, ref y,
-            new string[]{"Ear","Tail","Backlit","AFK"}, false);
-        AddToggleRow(panelRoot.transform, new string[]{"Big Hip"}, ref y,
-            new string[]{"Hip"}, false);
+        AddToggleRow(panelRoot.transform, new string[]{"Ears","Tail"}, ref y,
+            new string[]{"Ear","Tail"}, new bool[]{true, true}, true);
+        AddToggleRow(panelRoot.transform, new string[]{"Backlit","AFK","Big Hip"}, ref y,
+            new string[]{"Backlit","AFK","Hip"}, new bool[]{false, false, false}, false);
         AddSlider(panelRoot.transform, "Breast", ref y, (v) => SetAnimatorFloat("Breast", v));
         
         // === CAMERA ===
@@ -265,12 +265,14 @@ public class ShinanoController : MonoBehaviour
         y -= rows * (btnH + 3) + 5;
     }
     
-    void AddToggleRow(Transform parent, string[] labels, ref float y, string[] paramNames, bool invertLogic)
+    void AddToggleRow(Transform parent, string[] labels, ref float y, string[] paramNames, bool[] defaultOn, bool invertLogic)
     {
         float toggleW = (300f - 10) / labels.Length - 4;
         
         for (int i = 0; i < labels.Length; i++)
         {
+            bool isOn = defaultOn[i];
+            
             GameObject tog = new GameObject("Toggle_" + labels[i]);
             tog.transform.SetParent(parent, false);
             
@@ -311,10 +313,10 @@ public class ShinanoController : MonoBehaviour
             indRect.sizeDelta = new Vector2(12, 12);
             
             Image indImg = ind.AddComponent<Image>();
-            indImg.color = new Color(0.4f, 0.7f, 0.4f);
+            indImg.color = isOn ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
             
             Toggle toggle = tog.AddComponent<Toggle>();
-            toggle.isOn = true;
+            toggle.isOn = isOn;
             toggle.graphic = indImg;
             
             string param = paramNames[i];
