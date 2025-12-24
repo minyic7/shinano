@@ -240,6 +240,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   shinanoCharacter: {fileID: 495267314}
   characterAnimator: {fileID: 495267315}
+  mainCamera: {fileID: 1355232996}
   togglePanelKey: 9
   panelVisible: 1
 --- !u!1001 &1165591973

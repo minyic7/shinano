@@ -51,8 +51,6 @@ public class ShinanoController : MonoBehaviour
     
     // Camera & rotation
     private float characterRotation = 0f;
-    private float cameraDistance = 2f;
-    private Vector3 initialCameraPosition;
     
     void Start()
     {
@@ -87,13 +85,15 @@ public class ShinanoController : MonoBehaviour
         if (mainCamera == null)
         {
             mainCamera = Camera.main;
-        }
-        
-        if (mainCamera != null)
-        {
-            initialCameraPosition = mainCamera.transform.position;
-            cameraDistance = Vector3.Distance(mainCamera.transform.position,
-                shinanoCharacter != null ? shinanoCharacter.transform.position : Vector3.zero);
+            // If Camera.main fails (camera not tagged), find any camera
+            if (mainCamera == null)
+            {
+                mainCamera = FindObjectOfType<Camera>();
+                if (mainCamera != null)
+                {
+                    Debug.Log($"Found camera: {mainCamera.name} at position {mainCamera.transform.position}");
+                }
+            }
         }
         
         CreateUI();
@@ -247,12 +247,13 @@ public class ShinanoController : MonoBehaviour
         });
         
         CreateSlider(panelRoot.transform, "Camera Distance", 0.5f, ref yPos, (val) => {
-            if (mainCamera != null && shinanoCharacter != null)
+            if (mainCamera != null)
             {
-                // Map 0-1 to distance range (0.5 to 5 units)
-                float distance = Mathf.Lerp(0.5f, 5f, val);
-                Vector3 direction = (mainCamera.transform.position - shinanoCharacter.transform.position).normalized;
-                mainCamera.transform.position = shinanoCharacter.transform.position + direction * distance;
+                // Map 0-1 to Z distance range (0.5 to 5 units)
+                float zDistance = Mathf.Lerp(0.5f, 5f, val);
+                Vector3 pos = mainCamera.transform.position;
+                pos.z = zDistance;
+                mainCamera.transform.position = pos;
             }
         });
         
