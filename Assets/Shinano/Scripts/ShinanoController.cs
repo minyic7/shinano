@@ -848,10 +848,10 @@ public class ShinanoController : MonoBehaviour
         
         layerMixer.ConnectInput(0, animatorPlayable, 0, 1.0f);
         
-        // Layer 1: Custom animation clip
+        // Layer 1: Custom animation clip (start at 0 weight for blend-in)
         var clipPlayable = AnimationClipPlayable.Create(actionGraph, clip);
         clipPlayable.SetApplyFootIK(false);
-        layerMixer.ConnectInput(1, clipPlayable, 0, 1.0f);
+        layerMixer.ConnectInput(1, clipPlayable, 0, 0f);  // Start at 0 weight
         
         // Set layer to override mode
         layerMixer.SetLayerAdditive(1, false);
@@ -860,20 +860,37 @@ public class ShinanoController : MonoBehaviour
         
         actionGraph.Play();
         
-        // If animation is not looping, wait for it to finish
+        // Blend in - smoothly transition from standing to the custom animation
+        float blendInTime = 0.3f;
+        float t = 0;
+        while (t < blendInTime && actionGraph.IsValid())
+        {
+            t += Time.deltaTime;
+            float weight = Mathf.SmoothStep(0f, 1f, t / blendInTime);
+            if (actionGraph.IsValid())
+                layerMixer.SetInputWeight(1, weight);
+            yield return null;
+        }
+        
+        // Ensure full weight after blend-in
+        if (actionGraph.IsValid())
+            layerMixer.SetInputWeight(1, 1.0f);
+        
+        // If animation is not looping, wait for it to finish (minus blend-in time already elapsed)
         if (!clip.isLooping)
         {
-            yield return new WaitForSeconds(clip.length);
+            float remainingTime = Mathf.Max(0f, clip.length - blendInTime);
+            yield return new WaitForSeconds(remainingTime);
             
-            // Blend out (check if graph still valid)
+            // Blend out - smoothly transition back to standing
             if (actionGraph.IsValid())
             {
-                float blendTime = 0.25f;
-                float t = 0;
-                while (t < blendTime && actionGraph.IsValid())
+                float blendOutTime = 0.3f;
+                float blendOutT = 0;
+                while (blendOutT < blendOutTime && actionGraph.IsValid())
                 {
-                    t += Time.deltaTime;
-                    float weight = 1f - (t / blendTime);
+                    blendOutT += Time.deltaTime;
+                    float weight = Mathf.SmoothStep(1f, 0f, blendOutT / blendOutTime);
                     if (actionGraph.IsValid())
                         layerMixer.SetInputWeight(1, weight);
                     yield return null;
