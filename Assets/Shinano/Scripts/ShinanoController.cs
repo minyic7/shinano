@@ -45,8 +45,10 @@ public class ShinanoController : MonoBehaviour
     // Direct control references for toggles that need to work during custom animations
     private GameObject earObject;
     private GameObject tailObject;
-    private SkinnedMeshRenderer bodyRenderer;
-    private int hipBlendShapeIndex = -1;
+    
+    // Hip blendshape is on multiple meshes - need to control all of them
+    private List<SkinnedMeshRenderer> hipRenderers = new List<SkinnedMeshRenderer>();
+    private List<int> hipBlendShapeIndices = new List<int>();
     
     // State tracking for toggles (to reapply in LateUpdate during custom animations)
     private bool earToggleState = true;   // true = visible
@@ -165,19 +167,32 @@ public class ShinanoController : MonoBehaviour
             earObject = FindChildRecursive(shinanoCharacter.transform, "Other_ear");
             tailObject = FindChildRecursive(shinanoCharacter.transform, "Other_tail");
             
-            // Find body renderer for hip blendshape
-            GameObject bodyObj = FindChildRecursive(shinanoCharacter.transform, "Body");
-            if (bodyObj != null)
+            // Find all renderers with Hip_big blendshape (multiple meshes have it)
+            // Based on animation files: Body_base, Cloth_dress, Cloth_under_shorts, Cloth_skirt, Cloth_tights
+            string[] hipMeshNames = { "Body_base", "Cloth_dress", "Cloth_under_shorts", "Cloth_skirt", "Cloth_tights" };
+            hipRenderers.Clear();
+            hipBlendShapeIndices.Clear();
+            
+            foreach (string meshName in hipMeshNames)
             {
-                bodyRenderer = bodyObj.GetComponent<SkinnedMeshRenderer>();
-                if (bodyRenderer != null && bodyRenderer.sharedMesh != null)
+                GameObject meshObj = FindChildRecursive(shinanoCharacter.transform, meshName);
+                if (meshObj != null)
                 {
-                    hipBlendShapeIndex = bodyRenderer.sharedMesh.GetBlendShapeIndex("Hip_big");
-                    Debug.Log($"[Shinano] Found Hip_big blendshape at index: {hipBlendShapeIndex}");
+                    SkinnedMeshRenderer smr = meshObj.GetComponent<SkinnedMeshRenderer>();
+                    if (smr != null && smr.sharedMesh != null)
+                    {
+                        int idx = smr.sharedMesh.GetBlendShapeIndex("Hip_big");
+                        if (idx >= 0)
+                        {
+                            hipRenderers.Add(smr);
+                            hipBlendShapeIndices.Add(idx);
+                            Debug.Log($"[Shinano] Found Hip_big blendshape on {meshName} at index: {idx}");
+                        }
+                    }
                 }
             }
             
-            Debug.Log($"[Shinano] Direct control refs - Ear: {(earObject != null ? "Found" : "NOT FOUND")}, Tail: {(tailObject != null ? "Found" : "NOT FOUND")}, Body: {(bodyRenderer != null ? "Found" : "NOT FOUND")}");
+            Debug.Log($"[Shinano] Direct control refs - Ear: {(earObject != null ? "Found" : "NOT FOUND")}, Tail: {(tailObject != null ? "Found" : "NOT FOUND")}, Hip meshes: {hipRenderers.Count}");
         }
     }
     
@@ -233,10 +248,14 @@ public class ShinanoController : MonoBehaviour
                 tailObject.SetActive(tailToggleState);
             }
             
-            // Reapply hip blendshape state
-            if (bodyRenderer != null && hipBlendShapeIndex >= 0)
+            // Reapply hip blendshape state on ALL meshes that have it
+            float hipWeight = hipToggleState ? 100f : 0f;
+            for (int i = 0; i < hipRenderers.Count; i++)
             {
-                bodyRenderer.SetBlendShapeWeight(hipBlendShapeIndex, hipToggleState ? 100f : 0f);
+                if (hipRenderers[i] != null && hipBlendShapeIndices[i] >= 0)
+                {
+                    hipRenderers[i].SetBlendShapeWeight(hipBlendShapeIndices[i], hipWeight);
+                }
             }
         }
     }
@@ -844,12 +863,16 @@ public class ShinanoController : MonoBehaviour
             case 2: // Hip - direct logic: toggle ON = big hip, Hip param = true
                 hipToggleState = isOn;  // Save state for LateUpdate
                 SetAnimatorBool("Hip", isOn);
-                if (bodyRenderer != null && hipBlendShapeIndex >= 0)
+                // Apply to ALL meshes that have Hip_big blendshape
+                float weight = isOn ? 100f : 0f;
+                for (int i = 0; i < hipRenderers.Count; i++)
                 {
-                    float weight = isOn ? 100f : 0f;
-                    bodyRenderer.SetBlendShapeWeight(hipBlendShapeIndex, weight);
-                    Debug.Log($"[Shinano] Hip blendshape: {weight} (saved for LateUpdate)");
+                    if (hipRenderers[i] != null && hipBlendShapeIndices[i] >= 0)
+                    {
+                        hipRenderers[i].SetBlendShapeWeight(hipBlendShapeIndices[i], weight);
+                    }
                 }
+                Debug.Log($"[Shinano] Hip blendshape on {hipRenderers.Count} meshes: {weight} (saved for LateUpdate)");
                 break;
         }
     }
