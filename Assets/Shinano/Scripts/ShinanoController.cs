@@ -826,6 +826,26 @@ public class ShinanoController : MonoBehaviour
         
         // Layer 0: Base animator controller
         var animatorPlayable = AnimatorControllerPlayable.Create(actionGraph, characterAnimator.runtimeAnimatorController);
+        
+        // Copy all parameter values from the original animator to the new playable
+        // This preserves toggle states (Bra, Shorts, etc.)
+        for (int i = 0; i < characterAnimator.parameterCount; i++)
+        {
+            var param = characterAnimator.GetParameter(i);
+            switch (param.type)
+            {
+                case AnimatorControllerParameterType.Bool:
+                    animatorPlayable.SetBool(param.nameHash, characterAnimator.GetBool(param.nameHash));
+                    break;
+                case AnimatorControllerParameterType.Int:
+                    animatorPlayable.SetInteger(param.nameHash, characterAnimator.GetInteger(param.nameHash));
+                    break;
+                case AnimatorControllerParameterType.Float:
+                    animatorPlayable.SetFloat(param.nameHash, characterAnimator.GetFloat(param.nameHash));
+                    break;
+            }
+        }
+        
         layerMixer.ConnectInput(0, animatorPlayable, 0, 1.0f);
         
         // Layer 1: Custom animation clip
