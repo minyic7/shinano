@@ -38,6 +38,7 @@ public class ShinanoController : MonoBehaviour
     private bool isBlendingOut = false;
     private PlayableGraph actionGraph;
     private AnimationLayerMixerPlayable currentLayerMixer;
+    private AnimatorControllerPlayable currentAnimatorPlayable;
     private int currentAnimationIndex = -1;
     private Coroutine currentAnimationCoroutine;
     
@@ -851,6 +852,12 @@ public class ShinanoController : MonoBehaviour
             return;
         }
         characterAnimator.SetInteger(param, val);
+        
+        // Also update the AnimatorControllerPlayable if custom animation is playing
+        if (isPlayingAction && currentAnimatorPlayable.IsValid())
+        {
+            currentAnimatorPlayable.SetInteger(param, val);
+        }
         Debug.Log($"[Shinano] SetInt {param}={val}");
     }
     
@@ -862,6 +869,12 @@ public class ShinanoController : MonoBehaviour
             return;
         }
         characterAnimator.SetBool(param, val);
+        
+        // Also update the AnimatorControllerPlayable if custom animation is playing
+        if (isPlayingAction && currentAnimatorPlayable.IsValid())
+        {
+            currentAnimatorPlayable.SetBool(param, val);
+        }
         Debug.Log($"[Shinano] SetBool {param}={val}");
     }
     
@@ -873,6 +886,12 @@ public class ShinanoController : MonoBehaviour
             return;
         }
         characterAnimator.SetFloat(param, val);
+        
+        // Also update the AnimatorControllerPlayable if custom animation is playing
+        if (isPlayingAction && currentAnimatorPlayable.IsValid())
+        {
+            currentAnimatorPlayable.SetFloat(param, val);
+        }
         Debug.Log($"[Shinano] SetFloat {param}={val}");
     }
     
@@ -971,6 +990,7 @@ public class ShinanoController : MonoBehaviour
         isPlayingAction = false;
         isBlendingOut = false;
         currentAnimationIndex = -1;
+        currentAnimatorPlayable = default;  // Clear the playable reference
         UpdateAnimationButtonColors();  // Reset all buttons to inactive
         Debug.Log("[Shinano] Stopped custom animation with blend-out");
     }
@@ -990,6 +1010,7 @@ public class ShinanoController : MonoBehaviour
         isPlayingAction = false;
         isBlendingOut = false;
         currentAnimationIndex = -1;
+        currentAnimatorPlayable = default;  // Clear the playable reference
         UpdateAnimationButtonColors();  // Reset all buttons to inactive
     }
     
@@ -1022,7 +1043,7 @@ public class ShinanoController : MonoBehaviour
         currentLayerMixer = AnimationLayerMixerPlayable.Create(actionGraph, 2);
         
         // Layer 0: Base animator controller
-        var animatorPlayable = AnimatorControllerPlayable.Create(actionGraph, characterAnimator.runtimeAnimatorController);
+        currentAnimatorPlayable = AnimatorControllerPlayable.Create(actionGraph, characterAnimator.runtimeAnimatorController);
         
         // Copy all parameter values from the original animator to the new playable
         // This preserves toggle states (Bra, Shorts, etc.)
@@ -1032,18 +1053,18 @@ public class ShinanoController : MonoBehaviour
             switch (param.type)
             {
                 case AnimatorControllerParameterType.Bool:
-                    animatorPlayable.SetBool(param.nameHash, characterAnimator.GetBool(param.nameHash));
+                    currentAnimatorPlayable.SetBool(param.nameHash, characterAnimator.GetBool(param.nameHash));
                     break;
                 case AnimatorControllerParameterType.Int:
-                    animatorPlayable.SetInteger(param.nameHash, characterAnimator.GetInteger(param.nameHash));
+                    currentAnimatorPlayable.SetInteger(param.nameHash, characterAnimator.GetInteger(param.nameHash));
                     break;
                 case AnimatorControllerParameterType.Float:
-                    animatorPlayable.SetFloat(param.nameHash, characterAnimator.GetFloat(param.nameHash));
+                    currentAnimatorPlayable.SetFloat(param.nameHash, characterAnimator.GetFloat(param.nameHash));
                     break;
             }
         }
         
-        currentLayerMixer.ConnectInput(0, animatorPlayable, 0, 1.0f);
+        currentLayerMixer.ConnectInput(0, currentAnimatorPlayable, 0, 1.0f);
         
         // Layer 1: Custom animation clip (start at 0 weight for blend-in)
         var clipPlayable = AnimationClipPlayable.Create(actionGraph, clip);
