@@ -35,8 +35,11 @@ public class ShinanoController : MonoBehaviour
     private float characterRotation = 0f;
     private int currentFSet = 0;
     private bool isPlayingAction = false;
+    private bool isBlendingOut = false;
     private PlayableGraph actionGraph;
+    private AnimationLayerMixerPlayable currentLayerMixer;
     private int currentAnimationIndex = -1;
+    private Coroutine currentAnimationCoroutine;
     
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
@@ -779,6 +782,13 @@ public class ShinanoController : MonoBehaviour
             return;
         }
         
+        // Toggle behavior: if same animation is playing, stop it
+        if (currentAnimationIndex == index && isPlayingAction && !isBlendingOut)
+        {
+            StopCustomAnimationWithBlendOut();
+            return;
+        }
+        
         AnimationClip clip = customAnimations[index];
         if (clip == null)
         {
@@ -792,27 +802,95 @@ public class ShinanoController : MonoBehaviour
             return;
         }
         
-        // Stop any currently playing animation
-        StopCustomAnimation();
+        // Stop any currently playing animation immediately (no blend) when switching to a different animation
+        StopCustomAnimationImmediate();
         
         currentAnimationIndex = index;
-        StartCoroutine(PlayAnimationCoroutine(clip));
+        currentAnimationCoroutine = StartCoroutine(PlayAnimationCoroutine(clip));
     }
     
-    void StopCustomAnimation()
+    void StopCustomAnimationWithBlendOut()
     {
+        if (isBlendingOut) return;  // Already blending out
+        
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+        
+        StartCoroutine(BlendOutAndStopCoroutine());
+    }
+    
+    IEnumerator BlendOutAndStopCoroutine()
+    {
+        if (!actionGraph.IsValid())
+        {
+            isPlayingAction = false;
+            currentAnimationIndex = -1;
+            yield break;
+        }
+        
+        isBlendingOut = true;
+        Debug.Log("[Shinano] Blending out custom animation...");
+        
+        // Blend out - smoothly transition back to standing
+        float blendOutTime = 0.3f;
+        float t = 0;
+        while (t < blendOutTime && actionGraph.IsValid())
+        {
+            t += Time.deltaTime;
+            float weight = Mathf.SmoothStep(1f, 0f, t / blendOutTime);
+            if (actionGraph.IsValid() && currentLayerMixer.IsValid())
+                currentLayerMixer.SetInputWeight(1, weight);
+            yield return null;
+        }
+        
+        // Clean up
         if (actionGraph.IsValid())
         {
             actionGraph.Destroy();
         }
         isPlayingAction = false;
+        isBlendingOut = false;
         currentAnimationIndex = -1;
-        Debug.Log("[Shinano] Stopped custom animation");
+        Debug.Log("[Shinano] Stopped custom animation with blend-out");
+    }
+    
+    void StopCustomAnimationImmediate()
+    {
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+        
+        if (actionGraph.IsValid())
+        {
+            actionGraph.Destroy();
+        }
+        isPlayingAction = false;
+        isBlendingOut = false;
+        currentAnimationIndex = -1;
+    }
+    
+    void StopCustomAnimation()
+    {
+        // Use blend-out version for user-initiated stops
+        if (isPlayingAction && !isBlendingOut)
+        {
+            StopCustomAnimationWithBlendOut();
+        }
+        else
+        {
+            StopCustomAnimationImmediate();
+        }
     }
     
     IEnumerator PlayAnimationCoroutine(AnimationClip clip)
     {
         isPlayingAction = true;
+        isBlendingOut = false;
         Debug.Log($"[Shinano] Playing custom animation: {clip.name} ({clip.length}s)");
         
         // Create PlayableGraph for the animation
@@ -822,7 +900,7 @@ public class ShinanoController : MonoBehaviour
         var playableOutput = AnimationPlayableOutput.Create(actionGraph, "Animation", characterAnimator);
         
         // Create a layer mixer to blend with existing animation
-        var layerMixer = AnimationLayerMixerPlayable.Create(actionGraph, 2);
+        currentLayerMixer = AnimationLayerMixerPlayable.Create(actionGraph, 2);
         
         // Layer 0: Base animator controller
         var animatorPlayable = AnimatorControllerPlayable.Create(actionGraph, characterAnimator.runtimeAnimatorController);
@@ -846,59 +924,69 @@ public class ShinanoController : MonoBehaviour
             }
         }
         
-        layerMixer.ConnectInput(0, animatorPlayable, 0, 1.0f);
+        currentLayerMixer.ConnectInput(0, animatorPlayable, 0, 1.0f);
         
         // Layer 1: Custom animation clip (start at 0 weight for blend-in)
         var clipPlayable = AnimationClipPlayable.Create(actionGraph, clip);
         clipPlayable.SetApplyFootIK(false);
-        layerMixer.ConnectInput(1, clipPlayable, 0, 0f);  // Start at 0 weight
+        currentLayerMixer.ConnectInput(1, clipPlayable, 0, 0f);  // Start at 0 weight
         
         // Set layer to override mode
-        layerMixer.SetLayerAdditive(1, false);
+        currentLayerMixer.SetLayerAdditive(1, false);
         
-        playableOutput.SetSourcePlayable(layerMixer);
+        playableOutput.SetSourcePlayable(currentLayerMixer);
         
         actionGraph.Play();
         
         // Blend in - smoothly transition from standing to the custom animation
         float blendInTime = 0.3f;
         float t = 0;
-        while (t < blendInTime && actionGraph.IsValid())
+        while (t < blendInTime && actionGraph.IsValid() && !isBlendingOut)
         {
             t += Time.deltaTime;
             float weight = Mathf.SmoothStep(0f, 1f, t / blendInTime);
-            if (actionGraph.IsValid())
-                layerMixer.SetInputWeight(1, weight);
+            if (actionGraph.IsValid() && currentLayerMixer.IsValid())
+                currentLayerMixer.SetInputWeight(1, weight);
             yield return null;
         }
         
-        // Ensure full weight after blend-in
-        if (actionGraph.IsValid())
-            layerMixer.SetInputWeight(1, 1.0f);
+        // Ensure full weight after blend-in (unless we're blending out)
+        if (actionGraph.IsValid() && currentLayerMixer.IsValid() && !isBlendingOut)
+            currentLayerMixer.SetInputWeight(1, 1.0f);
         
-        // If animation is not looping, wait for it to finish (minus blend-in time already elapsed)
+        // If animation is not looping, wait for it to finish then auto-stop
         if (!clip.isLooping)
         {
             float remainingTime = Mathf.Max(0f, clip.length - blendInTime);
-            yield return new WaitForSeconds(remainingTime);
+            float elapsed = 0f;
             
-            // Blend out - smoothly transition back to standing
-            if (actionGraph.IsValid())
+            // Wait but check for blend-out request
+            while (elapsed < remainingTime && !isBlendingOut)
             {
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+            
+            // Only auto blend-out if not already being stopped externally
+            if (!isBlendingOut && actionGraph.IsValid())
+            {
+                isBlendingOut = true;
+                
+                // Blend out - smoothly transition back to standing
                 float blendOutTime = 0.3f;
                 float blendOutT = 0;
                 while (blendOutT < blendOutTime && actionGraph.IsValid())
                 {
                     blendOutT += Time.deltaTime;
                     float weight = Mathf.SmoothStep(1f, 0f, blendOutT / blendOutTime);
-                    if (actionGraph.IsValid())
-                        layerMixer.SetInputWeight(1, weight);
+                    if (actionGraph.IsValid() && currentLayerMixer.IsValid())
+                        currentLayerMixer.SetInputWeight(1, weight);
                     yield return null;
                 }
+                
+                StopCustomAnimationImmediate();
             }
-            
-            StopCustomAnimation();
         }
-        // If looping, it will play until manually stopped
+        // If looping, it will play until manually stopped via toggle or Stop button
     }
 }
