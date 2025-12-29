@@ -58,6 +58,11 @@ public class ShinanoController : MonoBehaviour
     
     private Text[] leftGestureLabels;
     private Text[] rightGestureLabels;
+    private List<Image> animationButtonImages = new List<Image>();
+    
+    // Animation button colors
+    private Color animBtnInactive = new Color(0.3f, 0.4f, 0.5f);
+    private Color animBtnActive = new Color(0.4f, 0.7f, 0.4f);
     
     void Start()
     {
@@ -268,6 +273,8 @@ public class ShinanoController : MonoBehaviour
     
     void AddCustomAnimationButtons(Transform parent, ref float y)
     {
+        animationButtonImages.Clear();
+        
         if (customAnimations.Count == 0)
         {
             AddLabel(parent, "No animations in Custom_animation folder", 10, y, new Color(0.6f, 0.6f, 0.6f));
@@ -275,16 +282,15 @@ public class ShinanoController : MonoBehaviour
             return;
         }
         
-        // Create buttons for each custom animation
-        string[] animNames = new string[customAnimations.Count + 1];
-        animNames[0] = "⏹ Stop";
+        // Create buttons for each custom animation (no Stop button - use toggle)
+        string[] animNames = new string[customAnimations.Count];
         for (int i = 0; i < customAnimations.Count; i++)
         {
             // Use display name if available, otherwise use clip name
             if (i < customAnimationNames.Count)
-                animNames[i + 1] = customAnimationNames[i];
+                animNames[i] = customAnimationNames[i];
             else
-                animNames[i + 1] = customAnimations[i].name;
+                animNames[i] = customAnimations[i].name;
         }
         
         // Add buttons in a grid
@@ -312,7 +318,7 @@ public class ShinanoController : MonoBehaviour
     
     void CreateAnimationButton(Transform parent, string label, float x, float yPos, float w, float h, int idx)
     {
-        GameObject btn = new GameObject("AnimBtn_" + label);
+        GameObject btn = new GameObject("AnimBtn_" + idx);
         btn.transform.SetParent(parent, false);
         
         RectTransform rect = btn.AddComponent<RectTransform>();
@@ -323,15 +329,15 @@ public class ShinanoController : MonoBehaviour
         rect.sizeDelta = new Vector2(w, h);
         
         Image img = btn.AddComponent<Image>();
-        img.color = idx == 0 ? new Color(0.4f, 0.3f, 0.3f) : new Color(0.3f, 0.4f, 0.5f);
+        img.color = animBtnInactive;
+        
+        // Store button image for visual feedback
+        animationButtonImages.Add(img);
         
         Button button = btn.AddComponent<Button>();
         button.targetGraphic = img;
         button.onClick.AddListener(() => {
-            if (idx == 0)
-                StopCustomAnimation();
-            else
-                PlayCustomAnimation(idx - 1);
+            PlayCustomAnimation(idx);
         });
         
         GameObject txtObj = new GameObject("Text");
@@ -774,6 +780,18 @@ public class ShinanoController : MonoBehaviour
     
     // === CUSTOM ANIMATION METHODS ===
     
+    void UpdateAnimationButtonColors()
+    {
+        for (int i = 0; i < animationButtonImages.Count; i++)
+        {
+            if (animationButtonImages[i] != null)
+            {
+                bool isActive = (i == currentAnimationIndex && isPlayingAction);
+                animationButtonImages[i].color = isActive ? animBtnActive : animBtnInactive;
+            }
+        }
+    }
+    
     void PlayCustomAnimation(int index)
     {
         if (index < 0 || index >= customAnimations.Count)
@@ -806,6 +824,7 @@ public class ShinanoController : MonoBehaviour
         StopCustomAnimationImmediate();
         
         currentAnimationIndex = index;
+        UpdateAnimationButtonColors();  // Show active state
         currentAnimationCoroutine = StartCoroutine(PlayAnimationCoroutine(clip));
     }
     
@@ -854,6 +873,7 @@ public class ShinanoController : MonoBehaviour
         isPlayingAction = false;
         isBlendingOut = false;
         currentAnimationIndex = -1;
+        UpdateAnimationButtonColors();  // Reset all buttons to inactive
         Debug.Log("[Shinano] Stopped custom animation with blend-out");
     }
     
@@ -872,6 +892,7 @@ public class ShinanoController : MonoBehaviour
         isPlayingAction = false;
         isBlendingOut = false;
         currentAnimationIndex = -1;
+        UpdateAnimationButtonColors();  // Reset all buttons to inactive
     }
     
     void StopCustomAnimation()
