@@ -265,6 +265,7 @@ public class ShinanoController : MonoBehaviour
             if (shinanoCharacter != null)
                 shinanoCharacter.transform.rotation = Quaternion.Euler(0, characterRotation, 0);
         });
+        AddCameraDistanceSlider(panelRoot.transform, ref y);
         
         // === CUSTOM ANIMATIONS ===
         AddSectionHeader(panelRoot.transform, "🎬 Custom Animations", ref y);
@@ -739,6 +740,103 @@ public class ShinanoController : MonoBehaviour
         slider.targetGraphic = handleImg;
         slider.value = 0.5f;
         slider.onValueChanged.AddListener((v) => onChange(v));
+        
+        y -= 26;
+    }
+    
+    void AddCameraDistanceSlider(Transform parent, ref float y)
+    {
+        // Get current camera z position (default is usually around 2)
+        float currentZ = 2f;
+        if (mainCamera != null)
+        {
+            currentZ = -mainCamera.transform.position.z;  // Negative because camera looks at origin
+        }
+        
+        // Distance range: 0.5 (close) to 5 (far), default ~2
+        float minDist = 0.5f;
+        float maxDist = 5f;
+        float defaultNormalized = Mathf.InverseLerp(minDist, maxDist, currentZ);
+        
+        GameObject lblObj = new GameObject("SliderLabel_Distance");
+        lblObj.transform.SetParent(parent, false);
+        RectTransform lblRt = lblObj.AddComponent<RectTransform>();
+        lblRt.anchorMin = new Vector2(0, 1);
+        lblRt.anchorMax = new Vector2(0, 1);
+        lblRt.pivot = new Vector2(0, 1);
+        lblRt.anchoredPosition = new Vector2(10, y);
+        lblRt.sizeDelta = new Vector2(60, 20);
+        
+        Text lbl = lblObj.AddComponent<Text>();
+        lbl.text = "Distance";
+        lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        lbl.fontSize = 10;
+        lbl.alignment = TextAnchor.MiddleLeft;
+        lbl.color = textColor;
+        
+        GameObject sliderBg = new GameObject("Slider_Distance");
+        sliderBg.transform.SetParent(parent, false);
+        RectTransform bgRt = sliderBg.AddComponent<RectTransform>();
+        bgRt.anchorMin = new Vector2(0, 1);
+        bgRt.anchorMax = new Vector2(1, 1);
+        bgRt.pivot = new Vector2(0, 1);
+        bgRt.anchoredPosition = new Vector2(70, y - 2);
+        bgRt.sizeDelta = new Vector2(-90, 16);
+        
+        Image bgImg = sliderBg.AddComponent<Image>();
+        bgImg.color = new Color(0.15f, 0.15f, 0.2f);
+        
+        GameObject fillArea = new GameObject("FillArea");
+        fillArea.transform.SetParent(sliderBg.transform, false);
+        RectTransform fillAreaRt = fillArea.AddComponent<RectTransform>();
+        fillAreaRt.anchorMin = Vector2.zero;
+        fillAreaRt.anchorMax = Vector2.one;
+        fillAreaRt.offsetMin = Vector2.zero;
+        fillAreaRt.offsetMax = Vector2.zero;
+        
+        GameObject fill = new GameObject("Fill");
+        fill.transform.SetParent(fillArea.transform, false);
+        RectTransform fillRt = fill.AddComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = new Vector2(defaultNormalized, 1);
+        fillRt.offsetMin = Vector2.zero;
+        fillRt.offsetMax = Vector2.zero;
+        
+        Image fillImg = fill.AddComponent<Image>();
+        fillImg.color = sectionColor;
+        
+        GameObject handleArea = new GameObject("HandleArea");
+        handleArea.transform.SetParent(sliderBg.transform, false);
+        RectTransform handleAreaRt = handleArea.AddComponent<RectTransform>();
+        handleAreaRt.anchorMin = Vector2.zero;
+        handleAreaRt.anchorMax = Vector2.one;
+        handleAreaRt.offsetMin = Vector2.zero;
+        handleAreaRt.offsetMax = Vector2.zero;
+        
+        GameObject handle = new GameObject("Handle");
+        handle.transform.SetParent(handleArea.transform, false);
+        RectTransform handleRt = handle.AddComponent<RectTransform>();
+        handleRt.sizeDelta = new Vector2(10, 0);
+        
+        Image handleImg = handle.AddComponent<Image>();
+        handleImg.color = Color.white;
+        
+        Slider slider = sliderBg.AddComponent<Slider>();
+        slider.fillRect = fillRt;
+        slider.handleRect = handleRt;
+        slider.targetGraphic = handleImg;
+        slider.value = defaultNormalized;
+        slider.onValueChanged.AddListener((v) => {
+            if (mainCamera != null)
+            {
+                // Map 0-1 slider to distance range
+                float distance = Mathf.Lerp(minDist, maxDist, v);
+                Vector3 pos = mainCamera.transform.position;
+                pos.z = -distance;  // Negative because camera looks at origin from positive Z
+                mainCamera.transform.position = pos;
+                Debug.Log($"[Shinano] Camera distance: {distance}");
+            }
+        });
         
         y -= 26;
     }
