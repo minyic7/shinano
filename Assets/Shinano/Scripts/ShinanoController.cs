@@ -746,16 +746,16 @@ public class ShinanoController : MonoBehaviour
     
     void AddCameraDistanceSlider(Transform parent, ref float y)
     {
-        // Get current camera z position (default is usually around 2)
+        // Get current camera z position (default is 2, positive because camera faces origin from +z)
         float currentZ = 2f;
         if (mainCamera != null)
         {
-            currentZ = -mainCamera.transform.position.z;  // Negative because camera looks at origin
+            currentZ = mainCamera.transform.position.z;  // Positive z (camera at z=2 looking at origin)
         }
         
-        // Distance range: 0.5 (close) to 5 (far), default ~2
-        float minDist = 0.5f;
-        float maxDist = 5f;
+        // Distance range: 1 (close) to 2 (far), safe range per user preference
+        float minDist = 1f;
+        float maxDist = 2f;
         float defaultNormalized = Mathf.InverseLerp(minDist, maxDist, currentZ);
         
         GameObject lblObj = new GameObject("SliderLabel_Distance");
@@ -829,10 +829,10 @@ public class ShinanoController : MonoBehaviour
         slider.onValueChanged.AddListener((v) => {
             if (mainCamera != null)
             {
-                // Map 0-1 slider to distance range
+                // Map 0-1 slider to distance range (1=close, 2=far)
                 float distance = Mathf.Lerp(minDist, maxDist, v);
                 Vector3 pos = mainCamera.transform.position;
-                pos.z = -distance;  // Negative because camera looks at origin from positive Z
+                pos.z = distance;  // Positive z (camera at z=2 looking at origin)
                 mainCamera.transform.position = pos;
                 Debug.Log($"[Shinano] Camera distance: {distance}");
             }
