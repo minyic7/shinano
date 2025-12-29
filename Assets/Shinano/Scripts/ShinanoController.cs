@@ -48,6 +48,11 @@ public class ShinanoController : MonoBehaviour
     private SkinnedMeshRenderer bodyRenderer;
     private int hipBlendShapeIndex = -1;
     
+    // State tracking for toggles (to reapply in LateUpdate during custom animations)
+    private bool earToggleState = true;   // true = visible
+    private bool tailToggleState = true;  // true = visible
+    private bool hipToggleState = false;  // true = big hip
+    
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
     private Color sectionColor = new Color(0.7f, 0.5f, 0.8f);
@@ -207,6 +212,32 @@ public class ShinanoController : MonoBehaviour
             panelVisible = !panelVisible;
             if (panelRoot != null)
                 panelRoot.SetActive(panelVisible);
+        }
+    }
+    
+    // LateUpdate runs after all animation processing - use it to reapply toggle states
+    // that get overwritten by the PlayableGraph during custom animation playback
+    void LateUpdate()
+    {
+        if (isPlayingAction)
+        {
+            // Reapply ear toggle state
+            if (earObject != null)
+            {
+                earObject.SetActive(earToggleState);
+            }
+            
+            // Reapply tail toggle state
+            if (tailObject != null)
+            {
+                tailObject.SetActive(tailToggleState);
+            }
+            
+            // Reapply hip blendshape state
+            if (bodyRenderer != null && hipBlendShapeIndex >= 0)
+            {
+                bodyRenderer.SetBlendShapeWeight(hipBlendShapeIndex, hipToggleState ? 100f : 0f);
+            }
         }
     }
     
@@ -785,35 +816,39 @@ public class ShinanoController : MonoBehaviour
     }
     
     // Direct control of body features - works during custom animations
+    // Saves state for LateUpdate to reapply after animation processing
     void ApplyBodyToggle(int toggleIndex, bool isOn)
     {
         switch (toggleIndex)
         {
             case 0: // Ears - inverted logic: toggle ON = visible, Ear param = false
+                earToggleState = isOn;  // Save state for LateUpdate
                 SetAnimatorBool("Ear", !isOn);
                 if (earObject != null)
                 {
                     earObject.SetActive(isOn);
-                    Debug.Log($"[Shinano] Ear direct control: {isOn}");
+                    Debug.Log($"[Shinano] Ear toggle: {isOn} (saved for LateUpdate)");
                 }
                 break;
                 
             case 1: // Tail - inverted logic: toggle ON = visible, Tail param = false
+                tailToggleState = isOn;  // Save state for LateUpdate
                 SetAnimatorBool("Tail", !isOn);
                 if (tailObject != null)
                 {
                     tailObject.SetActive(isOn);
-                    Debug.Log($"[Shinano] Tail direct control: {isOn}");
+                    Debug.Log($"[Shinano] Tail toggle: {isOn} (saved for LateUpdate)");
                 }
                 break;
                 
             case 2: // Hip - direct logic: toggle ON = big hip, Hip param = true
+                hipToggleState = isOn;  // Save state for LateUpdate
                 SetAnimatorBool("Hip", isOn);
                 if (bodyRenderer != null && hipBlendShapeIndex >= 0)
                 {
                     float weight = isOn ? 100f : 0f;
                     bodyRenderer.SetBlendShapeWeight(hipBlendShapeIndex, weight);
-                    Debug.Log($"[Shinano] Hip blendshape direct control: {weight}");
+                    Debug.Log($"[Shinano] Hip blendshape: {weight} (saved for LateUpdate)");
                 }
                 break;
         }
