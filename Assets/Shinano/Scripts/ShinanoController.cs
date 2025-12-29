@@ -1,10 +1,14 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.Playables;
+using UnityEngine.Animations;
+using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// Shinano Character Expression & Customization Controller
-/// Controls facial expressions, costume, hair, and body features
+/// Controls facial expressions, costume, hair, body features, and custom animations
 /// </summary>
 public class ShinanoController : MonoBehaviour
 {
@@ -14,6 +18,10 @@ public class ShinanoController : MonoBehaviour
     
     [Header("Camera Reference")]
     public Camera mainCamera;
+    
+    [Header("Custom Animations")]
+    public List<AnimationClip> customAnimations = new List<AnimationClip>();
+    private List<string> customAnimationNames = new List<string>();
     
     [Header("UI Settings")]
     public KeyCode togglePanelKey = KeyCode.Tab;
@@ -26,6 +34,9 @@ public class ShinanoController : MonoBehaviour
     // State tracking
     private float characterRotation = 0f;
     private int currentFSet = 0;
+    private bool isPlayingAction = false;
+    private PlayableGraph actionGraph;
+    private int currentAnimationIndex = -1;
     
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
@@ -50,8 +61,67 @@ public class ShinanoController : MonoBehaviour
         Debug.Log("[Shinano] Controller starting...");
         FindCharacter();
         FindCamera();
+        LoadCustomAnimations();
         CreateUI();
         Debug.Log($"[Shinano] Setup complete. Character: {(shinanoCharacter != null ? shinanoCharacter.name : "NOT FOUND")}, Animator: {(characterAnimator != null ? "OK" : "NOT FOUND")}");
+    }
+    
+    void OnDestroy()
+    {
+        if (actionGraph.IsValid())
+            actionGraph.Destroy();
+    }
+    
+    void LoadCustomAnimations()
+    {
+        #if UNITY_EDITOR
+        // In Editor, automatically load animations from Custom_animation folder
+        string folderPath = "Assets/Shinano/Animation/Custom_animation";
+        
+        // Load animations embedded in FBX files (Mixamo style)
+        string[] fbxGuids = UnityEditor.AssetDatabase.FindAssets("t:Model", new[] { folderPath });
+        foreach (string guid in fbxGuids)
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+            string fbxName = System.IO.Path.GetFileNameWithoutExtension(path);
+            Object[] assets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(path);
+            
+            foreach (Object asset in assets)
+            {
+                if (asset is AnimationClip clip && !clip.name.StartsWith("__preview__"))
+                {
+                    if (!customAnimations.Contains(clip))
+                    {
+                        customAnimations.Add(clip);
+                        // Use FBX filename if clip name is generic like "mixamo.com"
+                        string displayName = (clip.name == "mixamo.com" || clip.name.Contains("Take")) ? fbxName : clip.name;
+                        customAnimationNames.Add(displayName);
+                        Debug.Log($"[Shinano] Loaded animation: {displayName} ({clip.length}s) from {fbxName}");
+                    }
+                }
+            }
+        }
+        
+        // Also load standalone animation clips
+        string[] guids = UnityEditor.AssetDatabase.FindAssets("t:AnimationClip", new[] { folderPath });
+        foreach (string guid in guids)
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+            // Skip clips that are inside FBX files (already loaded above)
+            if (path.EndsWith(".anim"))
+            {
+                AnimationClip clip = UnityEditor.AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+                if (clip != null && !customAnimations.Contains(clip))
+                {
+                    customAnimations.Add(clip);
+                    customAnimationNames.Add(clip.name);
+                    Debug.Log($"[Shinano] Loaded animation: {clip.name} ({clip.length}s)");
+                }
+            }
+        }
+        #endif
+        
+        Debug.Log($"[Shinano] Total custom animations loaded: {customAnimations.Count}");
     }
     
     void FindCharacter()
@@ -164,6 +234,8 @@ public class ShinanoController : MonoBehaviour
         AddSectionHeader(panelRoot.transform, "👗 Costume", ref y);
         AddToggleRow(panelRoot.transform, new string[]{"Sweater","Dress","Skirt","Tights","Boots"}, ref y,
             new string[]{"Sweater","Dress","Skirt","Tights","Boots"}, new bool[]{true,true,true,true,true}, true);
+        AddToggleRow(panelRoot.transform, new string[]{"Bra","Shorts"}, ref y,
+            new string[]{"Bra","Shorts"}, new bool[]{true, true}, true);
         
         // === HAIR ===
         AddSectionHeader(panelRoot.transform, "💇 Hair", ref y);
@@ -185,6 +257,95 @@ public class ShinanoController : MonoBehaviour
             if (shinanoCharacter != null)
                 shinanoCharacter.transform.rotation = Quaternion.Euler(0, characterRotation, 0);
         });
+        
+        // === CUSTOM ANIMATIONS ===
+        AddSectionHeader(panelRoot.transform, "🎬 Custom Animations", ref y);
+        AddCustomAnimationButtons(panelRoot.transform, ref y);
+    }
+    
+    void AddCustomAnimationButtons(Transform parent, ref float y)
+    {
+        if (customAnimations.Count == 0)
+        {
+            AddLabel(parent, "No animations in Custom_animation folder", 10, y, new Color(0.6f, 0.6f, 0.6f));
+            y -= 20;
+            return;
+        }
+        
+        // Create buttons for each custom animation
+        string[] animNames = new string[customAnimations.Count + 1];
+        animNames[0] = "⏹ Stop";
+        for (int i = 0; i < customAnimations.Count; i++)
+        {
+            // Use display name if available, otherwise use clip name
+            if (i < customAnimationNames.Count)
+                animNames[i + 1] = customAnimationNames[i];
+            else
+                animNames[i + 1] = customAnimations[i].name;
+        }
+        
+        // Add buttons in a grid
+        float btnW = 120;
+        float btnH = 28;
+        float spacing = 4;
+        int cols = 3;
+        float startX = 10;
+        
+        for (int i = 0; i < animNames.Length; i++)
+        {
+            int row = i / cols;
+            int col = i % cols;
+            
+            float x = startX + col * (btnW + spacing);
+            float yPos = y - row * (btnH + spacing);
+            
+            int idx = i;
+            CreateAnimationButton(parent, animNames[i], x, yPos, btnW, btnH, idx);
+        }
+        
+        int rows = (animNames.Length + cols - 1) / cols;
+        y -= rows * (btnH + spacing) + 8;
+    }
+    
+    void CreateAnimationButton(Transform parent, string label, float x, float yPos, float w, float h, int idx)
+    {
+        GameObject btn = new GameObject("AnimBtn_" + label);
+        btn.transform.SetParent(parent, false);
+        
+        RectTransform rect = btn.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0, 1);
+        rect.anchorMax = new Vector2(0, 1);
+        rect.pivot = new Vector2(0, 1);
+        rect.anchoredPosition = new Vector2(x, yPos);
+        rect.sizeDelta = new Vector2(w, h);
+        
+        Image img = btn.AddComponent<Image>();
+        img.color = idx == 0 ? new Color(0.4f, 0.3f, 0.3f) : new Color(0.3f, 0.4f, 0.5f);
+        
+        Button button = btn.AddComponent<Button>();
+        button.targetGraphic = img;
+        button.onClick.AddListener(() => {
+            if (idx == 0)
+                StopCustomAnimation();
+            else
+                PlayCustomAnimation(idx - 1);
+        });
+        
+        GameObject txtObj = new GameObject("Text");
+        txtObj.transform.SetParent(btn.transform, false);
+        RectTransform txtRt = txtObj.AddComponent<RectTransform>();
+        txtRt.anchorMin = Vector2.zero;
+        txtRt.anchorMax = Vector2.one;
+        txtRt.offsetMin = new Vector2(4, 0);
+        txtRt.offsetMax = new Vector2(-4, 0);
+        
+        Text txt = txtObj.AddComponent<Text>();
+        txt.text = label;
+        txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        txt.fontSize = 10;
+        txt.alignment = TextAnchor.MiddleCenter;
+        txt.color = Color.white;
+        txt.horizontalOverflow = HorizontalWrapMode.Overflow;
     }
     
     // === UI BUILDING METHODS ===
@@ -486,6 +647,9 @@ public class ShinanoController : MonoBehaviour
             string param = paramNames[i];
             bool invert = inverts[i];
             
+            // Initialize the animator parameter to match the default toggle state
+            SetAnimatorBool(param, invert ? !isOn : isOn);
+            
             toggle.onValueChanged.AddListener((val) => {
                 indImg.color = val ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
                 SetAnimatorBool(param, invert ? !val : val);
@@ -603,5 +767,101 @@ public class ShinanoController : MonoBehaviour
         }
         characterAnimator.SetFloat(param, val);
         Debug.Log($"[Shinano] SetFloat {param}={val}");
+    }
+    
+    // === CUSTOM ANIMATION METHODS ===
+    
+    void PlayCustomAnimation(int index)
+    {
+        if (index < 0 || index >= customAnimations.Count)
+        {
+            Debug.LogWarning($"[Shinano] Invalid animation index: {index}");
+            return;
+        }
+        
+        AnimationClip clip = customAnimations[index];
+        if (clip == null)
+        {
+            Debug.LogWarning("[Shinano] Animation clip is null!");
+            return;
+        }
+        
+        if (characterAnimator == null)
+        {
+            Debug.LogWarning("[Shinano] No animator found!");
+            return;
+        }
+        
+        // Stop any currently playing animation
+        StopCustomAnimation();
+        
+        currentAnimationIndex = index;
+        StartCoroutine(PlayAnimationCoroutine(clip));
+    }
+    
+    void StopCustomAnimation()
+    {
+        if (actionGraph.IsValid())
+        {
+            actionGraph.Destroy();
+        }
+        isPlayingAction = false;
+        currentAnimationIndex = -1;
+        Debug.Log("[Shinano] Stopped custom animation");
+    }
+    
+    IEnumerator PlayAnimationCoroutine(AnimationClip clip)
+    {
+        isPlayingAction = true;
+        Debug.Log($"[Shinano] Playing custom animation: {clip.name} ({clip.length}s)");
+        
+        // Create PlayableGraph for the animation
+        actionGraph = PlayableGraph.Create("CustomAnimation");
+        actionGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+        
+        var playableOutput = AnimationPlayableOutput.Create(actionGraph, "Animation", characterAnimator);
+        
+        // Create a layer mixer to blend with existing animation
+        var layerMixer = AnimationLayerMixerPlayable.Create(actionGraph, 2);
+        
+        // Layer 0: Base animator controller
+        var animatorPlayable = AnimatorControllerPlayable.Create(actionGraph, characterAnimator.runtimeAnimatorController);
+        layerMixer.ConnectInput(0, animatorPlayable, 0, 1.0f);
+        
+        // Layer 1: Custom animation clip
+        var clipPlayable = AnimationClipPlayable.Create(actionGraph, clip);
+        clipPlayable.SetApplyFootIK(false);
+        layerMixer.ConnectInput(1, clipPlayable, 0, 1.0f);
+        
+        // Set layer to override mode
+        layerMixer.SetLayerAdditive(1, false);
+        
+        playableOutput.SetSourcePlayable(layerMixer);
+        
+        actionGraph.Play();
+        
+        // If animation is not looping, wait for it to finish
+        if (!clip.isLooping)
+        {
+            yield return new WaitForSeconds(clip.length);
+            
+            // Blend out (check if graph still valid)
+            if (actionGraph.IsValid())
+            {
+                float blendTime = 0.25f;
+                float t = 0;
+                while (t < blendTime && actionGraph.IsValid())
+                {
+                    t += Time.deltaTime;
+                    float weight = 1f - (t / blendTime);
+                    if (actionGraph.IsValid())
+                        layerMixer.SetInputWeight(1, weight);
+                    yield return null;
+                }
+            }
+            
+            StopCustomAnimation();
+        }
+        // If looping, it will play until manually stopped
     }
 }
