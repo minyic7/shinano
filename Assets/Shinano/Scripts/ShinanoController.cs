@@ -161,10 +161,10 @@ public class ShinanoController : MonoBehaviour
             tailObject = FindChildRecursive(shinanoCharacter.transform, "Other_tail");
             
             // Find body renderer for hip blendshape
-            Transform bodyTransform = FindChildRecursive(shinanoCharacter.transform, "Body");
-            if (bodyTransform != null)
+            GameObject bodyObj = FindChildRecursive(shinanoCharacter.transform, "Body");
+            if (bodyObj != null)
             {
-                bodyRenderer = bodyTransform.GetComponent<SkinnedMeshRenderer>();
+                bodyRenderer = bodyObj.GetComponent<SkinnedMeshRenderer>();
                 if (bodyRenderer != null && bodyRenderer.sharedMesh != null)
                 {
                     hipBlendShapeIndex = bodyRenderer.sharedMesh.GetBlendShapeIndex("Hip_big");
@@ -184,20 +184,6 @@ public class ShinanoController : MonoBehaviour
                 return child.gameObject;
             
             GameObject found = FindChildRecursive(child, name);
-            if (found != null)
-                return found;
-        }
-        return null;
-    }
-    
-    Transform FindChildRecursive(Transform parent, string name, bool returnTransform)
-    {
-        foreach (Transform child in parent)
-        {
-            if (child.name == name)
-                return child;
-            
-            Transform found = FindChildRecursive(child, name, true);
             if (found != null)
                 return found;
         }
