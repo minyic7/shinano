@@ -46,8 +46,8 @@ public class ShinanoController : MonoBehaviour
     private Color sectionColor = new Color(0.7f, 0.5f, 0.8f);
     private Color textColor = new Color(0.9f, 0.9f, 0.95f);
     
-    // Expression data
-    private string[] eyeEffects = { "Default", "Cheek", "Heart", "Dead", "Spiral", "Sparkle", "White", "Tear", "Sweat" };
+    // Expression data - matches animator F_Parts: 0=Default, 1=Cheek, 2=Heart, 3=Kirakira, 4=Sweat, 5=Tear, 6=Dead, 7=Guruguru, 8=White
+    private string[] eyeEffects = { "Default", "Cheek", "Heart", "Sparkle", "Sweat", "Tear", "Dead", "Spiral", "White" };
     
     // F_Set 0: Joy expressions (Gesture 0-7 triggers)
     private string[] gestureSet0 = { "Default", "Smile1", "Joy2", "Wink1", "Kirakira", "EyeCls1", "Surprised", "Angry2" };
