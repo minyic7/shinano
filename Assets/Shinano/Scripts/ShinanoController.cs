@@ -42,6 +42,12 @@ public class ShinanoController : MonoBehaviour
     private int currentAnimationIndex = -1;
     private Coroutine currentAnimationCoroutine;
     
+    // Direct control references for toggles that need to work during custom animations
+    private GameObject earObject;
+    private GameObject tailObject;
+    private SkinnedMeshRenderer bodyRenderer;
+    private int hipBlendShapeIndex = -1;
+    
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
     private Color sectionColor = new Color(0.7f, 0.5f, 0.8f);
@@ -146,6 +152,56 @@ public class ShinanoController : MonoBehaviour
         {
             characterAnimator = shinanoCharacter.GetComponent<Animator>();
         }
+        
+        // Find direct control references for toggles
+        if (shinanoCharacter != null)
+        {
+            // Find ear and tail objects
+            earObject = FindChildRecursive(shinanoCharacter.transform, "Other_ear");
+            tailObject = FindChildRecursive(shinanoCharacter.transform, "Other_tail");
+            
+            // Find body renderer for hip blendshape
+            Transform bodyTransform = FindChildRecursive(shinanoCharacter.transform, "Body");
+            if (bodyTransform != null)
+            {
+                bodyRenderer = bodyTransform.GetComponent<SkinnedMeshRenderer>();
+                if (bodyRenderer != null && bodyRenderer.sharedMesh != null)
+                {
+                    hipBlendShapeIndex = bodyRenderer.sharedMesh.GetBlendShapeIndex("Hip_big");
+                    Debug.Log($"[Shinano] Found Hip_big blendshape at index: {hipBlendShapeIndex}");
+                }
+            }
+            
+            Debug.Log($"[Shinano] Direct control refs - Ear: {(earObject != null ? "Found" : "NOT FOUND")}, Tail: {(tailObject != null ? "Found" : "NOT FOUND")}, Body: {(bodyRenderer != null ? "Found" : "NOT FOUND")}");
+        }
+    }
+    
+    GameObject FindChildRecursive(Transform parent, string name)
+    {
+        foreach (Transform child in parent)
+        {
+            if (child.name == name)
+                return child.gameObject;
+            
+            GameObject found = FindChildRecursive(child, name);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+    
+    Transform FindChildRecursive(Transform parent, string name, bool returnTransform)
+    {
+        foreach (Transform child in parent)
+        {
+            if (child.name == name)
+                return child;
+            
+            Transform found = FindChildRecursive(child, name, true);
+            if (found != null)
+                return found;
+        }
+        return null;
     }
     
     void FindCamera()
@@ -255,8 +311,7 @@ public class ShinanoController : MonoBehaviour
         
         // === BODY ===
         AddSectionHeader(panelRoot.transform, "✨ Body", ref y);
-        AddToggleRow(panelRoot.transform, new string[]{"Ears","Tail","Big Hip"}, ref y,
-            new string[]{"Ear","Tail","Hip"}, new bool[]{true, true, false}, new bool[]{true, true, false});
+        AddBodyToggles(panelRoot.transform, ref y);
         AddSlider(panelRoot.transform, "Breast", ref y, (v) => SetAnimatorFloat("Breast", v));
         
         // === CAMERA ===
@@ -668,6 +723,114 @@ public class ShinanoController : MonoBehaviour
         }
         
         y -= 36;
+    }
+    
+    // Specialized toggles for Ear/Tail/Hip with direct control (bypasses animator during animations)
+    void AddBodyToggles(Transform parent, ref float y)
+    {
+        string[] labels = { "Ears", "Tail", "Big Hip" };
+        bool[] defaults = { true, true, false };  // Ears ON, Tail ON, Hip normal
+        
+        float toggleW = 75;
+        float spacing = 4;
+        float startX = 10;
+        
+        for (int i = 0; i < labels.Length; i++)
+        {
+            float x = startX + i * (toggleW + spacing);
+            bool isOn = defaults[i];
+            
+            GameObject tog = new GameObject("Toggle_" + labels[i]);
+            tog.transform.SetParent(parent, false);
+            
+            RectTransform rect = tog.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0, 1);
+            rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(toggleW, 28);
+            
+            Image bg = tog.AddComponent<Image>();
+            bg.color = new Color(0.2f, 0.2f, 0.25f);
+            
+            GameObject lblObj = new GameObject("Label");
+            lblObj.transform.SetParent(tog.transform, false);
+            RectTransform lblRt = lblObj.AddComponent<RectTransform>();
+            lblRt.anchorMin = new Vector2(0, 0);
+            lblRt.anchorMax = new Vector2(0.75f, 1);
+            lblRt.offsetMin = new Vector2(4, 0);
+            lblRt.offsetMax = Vector2.zero;
+            
+            Text lbl = lblObj.AddComponent<Text>();
+            lbl.text = labels[i];
+            lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            lbl.fontSize = 9;
+            lbl.alignment = TextAnchor.MiddleLeft;
+            lbl.color = textColor;
+            
+            GameObject ind = new GameObject("Indicator");
+            ind.transform.SetParent(tog.transform, false);
+            RectTransform indRt = ind.AddComponent<RectTransform>();
+            indRt.anchorMin = new Vector2(1, 0.5f);
+            indRt.anchorMax = new Vector2(1, 0.5f);
+            indRt.pivot = new Vector2(1, 0.5f);
+            indRt.anchoredPosition = new Vector2(-4, 0);
+            indRt.sizeDelta = new Vector2(12, 12);
+            
+            Image indImg = ind.AddComponent<Image>();
+            indImg.color = isOn ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
+            
+            Toggle toggle = tog.AddComponent<Toggle>();
+            toggle.isOn = isOn;
+            toggle.graphic = indImg;
+            
+            int toggleIndex = i;
+            
+            // Initialize state
+            ApplyBodyToggle(toggleIndex, isOn);
+            
+            toggle.onValueChanged.AddListener((val) => {
+                indImg.color = val ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.5f, 0.3f, 0.3f);
+                ApplyBodyToggle(toggleIndex, val);
+            });
+        }
+        
+        y -= 36;
+    }
+    
+    // Direct control of body features - works during custom animations
+    void ApplyBodyToggle(int toggleIndex, bool isOn)
+    {
+        switch (toggleIndex)
+        {
+            case 0: // Ears - inverted logic: toggle ON = visible, Ear param = false
+                SetAnimatorBool("Ear", !isOn);
+                if (earObject != null)
+                {
+                    earObject.SetActive(isOn);
+                    Debug.Log($"[Shinano] Ear direct control: {isOn}");
+                }
+                break;
+                
+            case 1: // Tail - inverted logic: toggle ON = visible, Tail param = false
+                SetAnimatorBool("Tail", !isOn);
+                if (tailObject != null)
+                {
+                    tailObject.SetActive(isOn);
+                    Debug.Log($"[Shinano] Tail direct control: {isOn}");
+                }
+                break;
+                
+            case 2: // Hip - direct logic: toggle ON = big hip, Hip param = true
+                SetAnimatorBool("Hip", isOn);
+                if (bodyRenderer != null && hipBlendShapeIndex >= 0)
+                {
+                    float weight = isOn ? 100f : 0f;
+                    bodyRenderer.SetBlendShapeWeight(hipBlendShapeIndex, weight);
+                    Debug.Log($"[Shinano] Hip blendshape direct control: {weight}");
+                }
+                break;
+        }
     }
     
     void AddSlider(Transform parent, string label, ref float y, System.Action<float> onChange)
