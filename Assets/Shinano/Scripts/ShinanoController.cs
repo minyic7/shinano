@@ -41,6 +41,7 @@ public class ShinanoController : MonoBehaviour
     private AnimatorControllerPlayable currentAnimatorPlayable;
     private int currentAnimationIndex = -1;
     private Coroutine currentAnimationCoroutine;
+    private Vector3 savedCharacterPosition;  // Save position before custom animation
     
     // Direct control references for toggles that need to work during custom animations
     private GameObject earObject;
@@ -1147,6 +1148,12 @@ public class ShinanoController : MonoBehaviour
         // Stop any currently playing animation immediately (no blend) when switching to a different animation
         StopCustomAnimationImmediate();
         
+        // Save character position before playing animation (to restore after)
+        if (shinanoCharacter != null)
+        {
+            savedCharacterPosition = shinanoCharacter.transform.position;
+        }
+        
         currentAnimationIndex = index;
         UpdateAnimationButtonColors();  // Show active state
         currentAnimationCoroutine = StartCoroutine(PlayAnimationCoroutine(clip));
@@ -1194,6 +1201,13 @@ public class ShinanoController : MonoBehaviour
         {
             actionGraph.Destroy();
         }
+        
+        // Restore character position after animation ends
+        if (shinanoCharacter != null)
+        {
+            shinanoCharacter.transform.position = savedCharacterPosition;
+        }
+        
         isPlayingAction = false;
         isBlendingOut = false;
         currentAnimationIndex = -1;
@@ -1214,6 +1228,13 @@ public class ShinanoController : MonoBehaviour
         {
             actionGraph.Destroy();
         }
+        
+        // Restore character position after animation ends
+        if (shinanoCharacter != null && isPlayingAction)
+        {
+            shinanoCharacter.transform.position = savedCharacterPosition;
+        }
+        
         isPlayingAction = false;
         isBlendingOut = false;
         currentAnimationIndex = -1;
