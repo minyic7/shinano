@@ -1322,7 +1322,14 @@ public class ShinanoController : MonoBehaviour
         actionGraph.Play();
         
         // Blend in - smoothly transition from standing to the custom animation
+        // Use longer blend time for animations with wider stance (like planking)
         float blendInTime = 0.7f;
+        if (clip.name.ToLower().Contains("plank") ||
+            (currentAnimationIndex >= 0 && currentAnimationIndex < customAnimationNames.Count &&
+             customAnimationNames[currentAnimationIndex].ToLower().Contains("plank")))
+        {
+            blendInTime = 1.0f;  // Slower blend for plank due to wider feet spread
+        }
         float t = 0;
         while (t < blendInTime && actionGraph.IsValid() && !isBlendingOut)
         {
