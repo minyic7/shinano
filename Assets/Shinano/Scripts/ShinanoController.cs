@@ -1204,7 +1204,14 @@ public class ShinanoController : MonoBehaviour
         }
         
         // Now blend out the layer weight to return control to base animator
-        float blendOutTime = 0.2f;
+        // Use per-animation blend times: 0.7f for idle, 1.0f for plank
+        float blendOutTime = 0.7f;
+        if ((currentClip != null && currentClip.name.ToLower().Contains("plank")) ||
+            (currentAnimationIndex >= 0 && currentAnimationIndex < customAnimationNames.Count &&
+             customAnimationNames[currentAnimationIndex].ToLower().Contains("plank")))
+        {
+            blendOutTime = 1.0f;  // Slower blend for plank due to wider feet spread
+        }
         float t = 0;
         while (t < blendOutTime && actionGraph.IsValid())
         {
