@@ -45,6 +45,8 @@ public class ShinanoController : MonoBehaviour
     private int currentAnimationIndex = -1;
     private Coroutine currentAnimationCoroutine;
     private bool isHoldingPose = false;  // True when animation is frozen at final pose
+    private Vector3 savedCharacterPosition;  // Save position before animation to prevent drift
+    private Quaternion savedCharacterRotation;  // Save rotation before animation
     
     // Direct control references for toggles that need to work during custom animations
     private GameObject earObject;
@@ -1263,6 +1265,15 @@ public class ShinanoController : MonoBehaviour
         currentAnimatorPlayable = default;
         currentClipPlayable = default;
         currentClip = null;
+        
+        // Restore character position/rotation to prevent drift from root motion
+        if (shinanoCharacter != null)
+        {
+            shinanoCharacter.transform.position = savedCharacterPosition;
+            shinanoCharacter.transform.rotation = savedCharacterRotation;
+            Debug.Log($"[Shinano] Restored position: {savedCharacterPosition}");
+        }
+        
         UpdateAnimationButtonColors();
         Debug.Log("[Shinano] Animation complete - returned to standing");
     }
@@ -1278,6 +1289,14 @@ public class ShinanoController : MonoBehaviour
         if (actionGraph.IsValid())
         {
             actionGraph.Destroy();
+        }
+        
+        // Restore character position/rotation when stopping immediately
+        // (e.g., when switching to a different animation)
+        if (shinanoCharacter != null && isPlayingAction)
+        {
+            shinanoCharacter.transform.position = savedCharacterPosition;
+            shinanoCharacter.transform.rotation = savedCharacterRotation;
         }
         
         isPlayingAction = false;
@@ -1309,6 +1328,15 @@ public class ShinanoController : MonoBehaviour
         isBlendingOut = false;
         isHoldingPose = false;
         currentClip = clip;  // Store clip reference for reverse playback
+        
+        // Save character position/rotation before animation to prevent drift from root motion
+        if (shinanoCharacter != null)
+        {
+            savedCharacterPosition = shinanoCharacter.transform.position;
+            savedCharacterRotation = shinanoCharacter.transform.rotation;
+            Debug.Log($"[Shinano] Saved position: {savedCharacterPosition}");
+        }
+        
         Debug.Log($"[Shinano] Playing custom animation: {clip.name} ({clip.length}s, looping: {clip.isLooping})");
         
         // Create PlayableGraph for the animation
