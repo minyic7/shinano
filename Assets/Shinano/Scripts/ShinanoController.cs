@@ -1322,7 +1322,7 @@ public class ShinanoController : MonoBehaviour
         actionGraph.Play();
         
         // Blend in - smoothly transition from standing to the custom animation
-        float blendInTime = 0.3f;
+        float blendInTime = 0.7f;
         float t = 0;
         while (t < blendInTime && actionGraph.IsValid() && !isBlendingOut)
         {
