@@ -1242,13 +1242,28 @@ public class ShinanoController : MonoBehaviour
         {
             blendOutTime = 1.0f;  // Slower blend for plank due to wider feet spread
         }
+        
+        // Capture current position for smooth interpolation during blend-out
+        Vector3 blendStartPosition = shinanoCharacter != null ? shinanoCharacter.transform.position : savedCharacterPosition;
+        Quaternion blendStartRotation = shinanoCharacter != null ? shinanoCharacter.transform.rotation : savedCharacterRotation;
+        
         float t = 0;
         while (t < blendOutTime && actionGraph.IsValid())
         {
             t += Time.deltaTime;
-            float weight = Mathf.SmoothStep(1f, 0f, t / blendOutTime);
+            float progress = t / blendOutTime;
+            float weight = Mathf.SmoothStep(1f, 0f, progress);
             if (actionGraph.IsValid() && currentLayerMixer.IsValid())
                 currentLayerMixer.SetInputWeight(1, weight);
+            
+            // Smoothly interpolate position/rotation back to saved values during blend-out
+            // This prevents the sudden "pop" when restoring position
+            if (shinanoCharacter != null)
+            {
+                shinanoCharacter.transform.position = Vector3.Lerp(blendStartPosition, savedCharacterPosition, Mathf.SmoothStep(0f, 1f, progress));
+                shinanoCharacter.transform.rotation = Quaternion.Slerp(blendStartRotation, savedCharacterRotation, Mathf.SmoothStep(0f, 1f, progress));
+            }
+            
             yield return null;
         }
         
@@ -1266,12 +1281,11 @@ public class ShinanoController : MonoBehaviour
         currentClipPlayable = default;
         currentClip = null;
         
-        // Restore character position/rotation to prevent drift from root motion
+        // Final position restoration (should already be at saved position from smooth interpolation)
         if (shinanoCharacter != null)
         {
             shinanoCharacter.transform.position = savedCharacterPosition;
             shinanoCharacter.transform.rotation = savedCharacterRotation;
-            Debug.Log($"[Shinano] Restored position: {savedCharacterPosition}");
         }
         
         UpdateAnimationButtonColors();
