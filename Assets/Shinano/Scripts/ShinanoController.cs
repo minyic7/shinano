@@ -1185,21 +1185,22 @@ public class ShinanoController : MonoBehaviour
         // This makes the character naturally stand back up
         if (currentClipPlayable.IsValid() && currentClip != null)
         {
-            // Set speed to -1 to play in reverse
+            // Set speed to -1 to play in reverse from current position
             currentClipPlayable.SetSpeed(-1f);
             
-            // Wait for animation to reach the beginning (time approaches 0)
-            float currentTime = (float)currentClipPlayable.GetTime();
-            while (currentTime > 0.01f && actionGraph.IsValid() && !isBlendingOut)
-            {
-                yield return null;
-                if (currentClipPlayable.IsValid())
-                    currentTime = (float)currentClipPlayable.GetTime();
-                else
-                    break;
-            }
+            Debug.Log($"[Shinano] Starting reverse playback from time: {currentClipPlayable.GetTime()}");
             
-            Debug.Log("[Shinano] Animation reversed to start - blending out layer...");
+            // Wait for animation to reach the beginning (time approaches 0)
+            while (actionGraph.IsValid() && currentClipPlayable.IsValid())
+            {
+                float currentTime = (float)currentClipPlayable.GetTime();
+                if (currentTime <= 0.05f)
+                {
+                    Debug.Log("[Shinano] Animation reversed to start");
+                    break;
+                }
+                yield return null;
+            }
         }
         
         // Now blend out the layer weight to return control to base animator
