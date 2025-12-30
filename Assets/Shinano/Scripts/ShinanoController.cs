@@ -39,8 +39,11 @@ public class ShinanoController : MonoBehaviour
     private PlayableGraph actionGraph;
     private AnimationLayerMixerPlayable currentLayerMixer;
     private AnimatorControllerPlayable currentAnimatorPlayable;
+    private AnimationClipPlayable currentClipPlayable;  // Store reference to control playback direction
+    private AnimationClip currentClip;  // Store reference to current clip
     private int currentAnimationIndex = -1;
     private Coroutine currentAnimationCoroutine;
+    private bool isHoldingPose = false;  // True when animation is frozen at final pose
     
     // Direct control references for toggles that need to work during custom animations
     private GameObject earObject;
@@ -1170,15 +1173,37 @@ public class ShinanoController : MonoBehaviour
         if (!actionGraph.IsValid())
         {
             isPlayingAction = false;
+            isHoldingPose = false;
             currentAnimationIndex = -1;
             yield break;
         }
         
         isBlendingOut = true;
-        Debug.Log("[Shinano] Blending out custom animation...");
+        Debug.Log("[Shinano] Reversing animation to return to standing...");
         
-        // Blend out - smoothly transition back to standing
-        float blendOutTime = 0.3f;
+        // REVERSE the animation instead of blending out
+        // This makes the character naturally stand back up
+        if (currentClipPlayable.IsValid() && currentClip != null)
+        {
+            // Set speed to -1 to play in reverse
+            currentClipPlayable.SetSpeed(-1f);
+            
+            // Wait for animation to reach the beginning (time approaches 0)
+            float currentTime = (float)currentClipPlayable.GetTime();
+            while (currentTime > 0.01f && actionGraph.IsValid() && !isBlendingOut)
+            {
+                yield return null;
+                if (currentClipPlayable.IsValid())
+                    currentTime = (float)currentClipPlayable.GetTime();
+                else
+                    break;
+            }
+            
+            Debug.Log("[Shinano] Animation reversed to start - blending out layer...");
+        }
+        
+        // Now blend out the layer weight to return control to base animator
+        float blendOutTime = 0.2f;
         float t = 0;
         while (t < blendOutTime && actionGraph.IsValid())
         {
@@ -1197,10 +1222,13 @@ public class ShinanoController : MonoBehaviour
         
         isPlayingAction = false;
         isBlendingOut = false;
+        isHoldingPose = false;
         currentAnimationIndex = -1;
-        currentAnimatorPlayable = default;  // Clear the playable reference
-        UpdateAnimationButtonColors();  // Reset all buttons to inactive
-        Debug.Log("[Shinano] Stopped custom animation with blend-out");
+        currentAnimatorPlayable = default;
+        currentClipPlayable = default;
+        currentClip = null;
+        UpdateAnimationButtonColors();
+        Debug.Log("[Shinano] Animation complete - returned to standing");
     }
     
     void StopCustomAnimationImmediate()
@@ -1218,9 +1246,12 @@ public class ShinanoController : MonoBehaviour
         
         isPlayingAction = false;
         isBlendingOut = false;
+        isHoldingPose = false;
         currentAnimationIndex = -1;
-        currentAnimatorPlayable = default;  // Clear the playable reference
-        UpdateAnimationButtonColors();  // Reset all buttons to inactive
+        currentAnimatorPlayable = default;
+        currentClipPlayable = default;
+        currentClip = null;
+        UpdateAnimationButtonColors();
     }
     
     void StopCustomAnimation()
@@ -1240,6 +1271,8 @@ public class ShinanoController : MonoBehaviour
     {
         isPlayingAction = true;
         isBlendingOut = false;
+        isHoldingPose = false;
+        currentClip = clip;  // Store clip reference for reverse playback
         Debug.Log($"[Shinano] Playing custom animation: {clip.name} ({clip.length}s, looping: {clip.isLooping})");
         
         // Create PlayableGraph for the animation
@@ -1276,9 +1309,9 @@ public class ShinanoController : MonoBehaviour
         currentLayerMixer.ConnectInput(0, currentAnimatorPlayable, 0, 1.0f);
         
         // Layer 1: Custom animation clip (start at 0 weight for blend-in)
-        var clipPlayable = AnimationClipPlayable.Create(actionGraph, clip);
-        clipPlayable.SetApplyFootIK(false);
-        currentLayerMixer.ConnectInput(1, clipPlayable, 0, 0f);  // Start at 0 weight
+        currentClipPlayable = AnimationClipPlayable.Create(actionGraph, clip);  // Store reference
+        currentClipPlayable.SetApplyFootIK(false);
+        currentLayerMixer.ConnectInput(1, currentClipPlayable, 0, 0f);  // Start at 0 weight
         
         // Set layer to override mode
         currentLayerMixer.SetLayerAdditive(1, false);
@@ -1320,19 +1353,17 @@ public class ShinanoController : MonoBehaviour
             // Do NOT auto blend-out! Wait for user to click button again (toggle off)
             if (!isBlendingOut && actionGraph.IsValid())
             {
-                // Get the clip playable and pause it at the end
-                var clipPlayableInput = currentLayerMixer.GetInput(1);
-                if (clipPlayableInput.IsValid())
+                if (currentClipPlayable.IsValid())
                 {
-                    clipPlayableInput.SetSpeed(0f);  // Freeze at current frame (last frame)
-                    Debug.Log("[Shinano] Animation finished - HOLDING at final pose. Click button again to return to standing.");
+                    currentClipPlayable.SetSpeed(0f);  // Freeze at current frame (last frame)
+                    isHoldingPose = true;
+                    Debug.Log("[Shinano] Animation finished - HOLDING at final pose. Click button again to reverse back to standing.");
                 }
             }
         }
         
         // Animation is now either:
         // 1. Looping continuously (if clip.isLooping == true)
-        // 2. Frozen at the last frame (if non-looping)
-        // Both will continue until user clicks the button again to trigger blend-out
+        // 2. Frozen at the last frame (if non-looping) - will reverse when user clicks again
     }
 }
