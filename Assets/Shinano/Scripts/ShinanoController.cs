@@ -41,7 +41,6 @@ public class ShinanoController : MonoBehaviour
     private AnimatorControllerPlayable currentAnimatorPlayable;
     private int currentAnimationIndex = -1;
     private Coroutine currentAnimationCoroutine;
-    private Vector3 savedCharacterPosition;  // Save position before custom animation
     
     // Direct control references for toggles that need to work during custom animations
     private GameObject earObject;
@@ -1148,12 +1147,6 @@ public class ShinanoController : MonoBehaviour
         // Stop any currently playing animation immediately (no blend) when switching to a different animation
         StopCustomAnimationImmediate();
         
-        // Save character position before playing animation (to restore after)
-        if (shinanoCharacter != null)
-        {
-            savedCharacterPosition = shinanoCharacter.transform.position;
-        }
-        
         currentAnimationIndex = index;
         UpdateAnimationButtonColors();  // Show active state
         currentAnimationCoroutine = StartCoroutine(PlayAnimationCoroutine(clip));
@@ -1202,12 +1195,6 @@ public class ShinanoController : MonoBehaviour
             actionGraph.Destroy();
         }
         
-        // Restore character position after animation ends
-        if (shinanoCharacter != null)
-        {
-            shinanoCharacter.transform.position = savedCharacterPosition;
-        }
-        
         isPlayingAction = false;
         isBlendingOut = false;
         currentAnimationIndex = -1;
@@ -1227,12 +1214,6 @@ public class ShinanoController : MonoBehaviour
         if (actionGraph.IsValid())
         {
             actionGraph.Destroy();
-        }
-        
-        // Restore character position after animation ends
-        if (shinanoCharacter != null && isPlayingAction)
-        {
-            shinanoCharacter.transform.position = savedCharacterPosition;
         }
         
         isPlayingAction = false;
@@ -1259,7 +1240,7 @@ public class ShinanoController : MonoBehaviour
     {
         isPlayingAction = true;
         isBlendingOut = false;
-        Debug.Log($"[Shinano] Playing custom animation: {clip.name} ({clip.length}s)");
+        Debug.Log($"[Shinano] Playing custom animation: {clip.name} ({clip.length}s, looping: {clip.isLooping})");
         
         // Create PlayableGraph for the animation
         actionGraph = PlayableGraph.Create("CustomAnimation");
@@ -1322,39 +1303,36 @@ public class ShinanoController : MonoBehaviour
         if (actionGraph.IsValid() && currentLayerMixer.IsValid() && !isBlendingOut)
             currentLayerMixer.SetInputWeight(1, 1.0f);
         
-        // If animation is not looping, wait for it to finish then auto-stop
+        // Wait for animation to finish playing
         if (!clip.isLooping)
         {
             float remainingTime = Mathf.Max(0f, clip.length - blendInTime);
             float elapsed = 0f;
             
-            // Wait but check for blend-out request
+            // Wait for animation to complete but check for blend-out request
             while (elapsed < remainingTime && !isBlendingOut)
             {
                 elapsed += Time.deltaTime;
                 yield return null;
             }
             
-            // Only auto blend-out if not already being stopped externally
+            // HOLD at the final frame - pause the clip playable so it stays on last frame
+            // Do NOT auto blend-out! Wait for user to click button again (toggle off)
             if (!isBlendingOut && actionGraph.IsValid())
             {
-                isBlendingOut = true;
-                
-                // Blend out - smoothly transition back to standing
-                float blendOutTime = 0.3f;
-                float blendOutT = 0;
-                while (blendOutT < blendOutTime && actionGraph.IsValid())
+                // Get the clip playable and pause it at the end
+                var clipPlayableInput = currentLayerMixer.GetInput(1);
+                if (clipPlayableInput.IsValid())
                 {
-                    blendOutT += Time.deltaTime;
-                    float weight = Mathf.SmoothStep(1f, 0f, blendOutT / blendOutTime);
-                    if (actionGraph.IsValid() && currentLayerMixer.IsValid())
-                        currentLayerMixer.SetInputWeight(1, weight);
-                    yield return null;
+                    clipPlayableInput.SetSpeed(0f);  // Freeze at current frame (last frame)
+                    Debug.Log("[Shinano] Animation finished - HOLDING at final pose. Click button again to return to standing.");
                 }
-                
-                StopCustomAnimationImmediate();
             }
         }
-        // If looping, it will play until manually stopped via toggle or Stop button
+        
+        // Animation is now either:
+        // 1. Looping continuously (if clip.isLooping == true)
+        // 2. Frozen at the last frame (if non-looping)
+        // Both will continue until user clicks the button again to trigger blend-out
     }
 }
