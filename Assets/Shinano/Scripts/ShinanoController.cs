@@ -30,6 +30,7 @@ public class ShinanoController : MonoBehaviour
     // UI References
     private Canvas uiCanvas;
     private GameObject panelRoot;
+    private GameObject animationPanelRoot;  // Second panel for custom animations
     
     // State tracking
     private float characterRotation = 0f;
@@ -230,6 +231,8 @@ public class ShinanoController : MonoBehaviour
             panelVisible = !panelVisible;
             if (panelRoot != null)
                 panelRoot.SetActive(panelVisible);
+            if (animationPanelRoot != null)
+                animationPanelRoot.SetActive(panelVisible);
         }
     }
     
@@ -362,9 +365,34 @@ public class ShinanoController : MonoBehaviour
         });
         AddCameraDistanceSlider(panelRoot.transform, ref y);
         
-        // === CUSTOM ANIMATIONS ===
-        AddSectionHeader(panelRoot.transform, "🎬 Custom Animations", ref y);
-        AddCustomAnimationButtons(panelRoot.transform, ref y);
+        // === CUSTOM ANIMATIONS (Second Panel) ===
+        CreateAnimationPanel(canvasObj);
+    }
+    
+    void CreateAnimationPanel(GameObject canvasObj)
+    {
+        // Create second panel for custom animations - positioned to the right of main panel
+        animationPanelRoot = new GameObject("AnimationPanel");
+        animationPanelRoot.transform.SetParent(canvasObj.transform, false);
+        
+        RectTransform animPanelRect = animationPanelRoot.AddComponent<RectTransform>();
+        animPanelRect.anchorMin = new Vector2(0, 0);
+        animPanelRect.anchorMax = new Vector2(0, 1);
+        animPanelRect.pivot = new Vector2(0, 0.5f);
+        animPanelRect.anchoredPosition = new Vector2(420, 0);  // 400px main panel + 10px gap + 10px margin
+        animPanelRect.sizeDelta = new Vector2(280, -40);  // Narrower panel for animations
+        
+        Image animPanelImg = animationPanelRoot.AddComponent<Image>();
+        animPanelImg.color = panelBg;
+        
+        float y = -10;
+        
+        // Title
+        AddLabel(animationPanelRoot.transform, "🎬 Animations", 16, y, sectionColor);
+        y -= 30;
+        
+        // Add animation buttons
+        AddCustomAnimationButtons(animationPanelRoot.transform, ref y);
     }
     
     void AddCustomAnimationButtons(Transform parent, ref float y)
@@ -389,11 +417,11 @@ public class ShinanoController : MonoBehaviour
                 animNames[i] = customAnimations[i].name;
         }
         
-        // Add buttons in a grid
-        float btnW = 120;
+        // Add buttons in a grid (2 columns for animation panel)
+        float btnW = 125;
         float btnH = 28;
         float spacing = 4;
-        int cols = 3;
+        int cols = 2;
         float startX = 10;
         
         for (int i = 0; i < animNames.Length; i++)
