@@ -373,15 +373,15 @@ public class ShinanoController : MonoBehaviour
     
     void CreateAnimationPanel(GameObject canvasObj)
     {
-        // Create second panel for custom animations - positioned to the right of main panel
+        // Create second panel for custom animations - positioned on RIGHT side of screen
         animationPanelRoot = new GameObject("AnimationPanel");
         animationPanelRoot.transform.SetParent(canvasObj.transform, false);
         
         RectTransform animPanelRect = animationPanelRoot.AddComponent<RectTransform>();
-        animPanelRect.anchorMin = new Vector2(0, 0);
-        animPanelRect.anchorMax = new Vector2(0, 1);
-        animPanelRect.pivot = new Vector2(0, 0.5f);
-        animPanelRect.anchoredPosition = new Vector2(420, 0);  // 400px main panel + 10px gap + 10px margin
+        animPanelRect.anchorMin = new Vector2(1, 0);  // Anchor to right side
+        animPanelRect.anchorMax = new Vector2(1, 1);
+        animPanelRect.pivot = new Vector2(1, 0.5f);   // Pivot on right
+        animPanelRect.anchoredPosition = new Vector2(-10, 0);  // 10px margin from right edge
         animPanelRect.sizeDelta = new Vector2(280, -40);  // Narrower panel for animations
         
         Image animPanelImg = animationPanelRoot.AddComponent<Image>();
