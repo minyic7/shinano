@@ -132,10 +132,96 @@ public class ShinanoController : MonoBehaviour
     
     void LoadCustomAnimations()
     {
-        #if UNITY_EDITOR
-        // In Editor, automatically load animations from Custom_animation folder
-        string folderPath = "Assets/Shinano/Animation/Custom_animation";
+        // Load animations from Resources folder (works in builds and Editor)
+        // First try to load from Resources/CustomAnimations
+        LoadAnimationsFromResources();
         
+        #if UNITY_EDITOR
+        // In Editor, also check the original Custom_animation folder for development convenience
+        if (customAnimations.Count == 0)
+        {
+            string folderPath = "Assets/Shinano/Animation/Custom_animation";
+            LoadAnimationsFromEditorFolder(folderPath);
+        }
+        #endif
+        
+        Debug.Log($"[Shinano] Total custom animations loaded: {customAnimations.Count}");
+    }
+    
+    void LoadAnimationsFromResources()
+    {
+        // Load all objects from CustomAnimations folder in Resources
+        // This loads FBX models and their embedded animations
+        Object[] allAssets = Resources.LoadAll("CustomAnimations");
+        
+        foreach (Object asset in allAssets)
+        {
+            // Check if it's an AnimationClip directly
+            if (asset is AnimationClip clip && !clip.name.StartsWith("__preview__"))
+            {
+                if (!customAnimations.Contains(clip))
+                {
+                    customAnimations.Add(clip);
+                    customAnimationNames.Add(GetDisplayNameFromClip(clip));
+                    Debug.Log($"[Shinano] Loaded animation from Resources: {clip.name} ({clip.length}s)");
+                }
+            }
+            // If it's a GameObject (from FBX), try to get animations from it
+            else if (asset is GameObject go)
+            {
+                // Get all animation clips associated with this model
+                Animation legacyAnim = go.GetComponent<Animation>();
+                if (legacyAnim != null)
+                {
+                    foreach (AnimationState state in legacyAnim)
+                    {
+                        if (state.clip != null && !state.clip.name.StartsWith("__preview__"))
+                        {
+                            if (!customAnimations.Contains(state.clip))
+                            {
+                                customAnimations.Add(state.clip);
+                                customAnimationNames.Add(GetDisplayNameFromClip(state.clip, go.name));
+                                Debug.Log($"[Shinano] Loaded legacy animation: {state.clip.name} from {go.name}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Also try loading AnimationClips directly (in case some are standalone .anim files)
+        AnimationClip[] clips = Resources.LoadAll<AnimationClip>("CustomAnimations");
+        foreach (AnimationClip clip in clips)
+        {
+            if (clip != null && !clip.name.StartsWith("__preview__") && !customAnimations.Contains(clip))
+            {
+                customAnimations.Add(clip);
+                customAnimationNames.Add(GetDisplayNameFromClip(clip));
+                Debug.Log($"[Shinano] Loaded clip from Resources: {clip.name} ({clip.length}s)");
+            }
+        }
+    }
+    
+    string GetDisplayNameFromClip(AnimationClip clip, string fbxName = null)
+    {
+        // Use FBX filename if clip name is generic like "mixamo.com"
+        if (fbxName != null && (clip.name == "mixamo.com" || clip.name.Contains("Take")))
+        {
+            // Extract display name from FBX filename (e.g., "Shinano_for_mixamo@Dancing" -> "Dancing")
+            string displayName = fbxName;
+            int atIndex = displayName.IndexOf('@');
+            if (atIndex >= 0 && atIndex < displayName.Length - 1)
+            {
+                displayName = displayName.Substring(atIndex + 1);
+            }
+            return displayName;
+        }
+        return clip.name;
+    }
+    
+    #if UNITY_EDITOR
+    void LoadAnimationsFromEditorFolder(string folderPath)
+    {
         // Load animations embedded in FBX files (Mixamo style)
         string[] fbxGuids = UnityEditor.AssetDatabase.FindAssets("t:Model", new[] { folderPath });
         foreach (string guid in fbxGuids)
@@ -153,6 +239,12 @@ public class ShinanoController : MonoBehaviour
                         customAnimations.Add(clip);
                         // Use FBX filename if clip name is generic like "mixamo.com"
                         string displayName = (clip.name == "mixamo.com" || clip.name.Contains("Take")) ? fbxName : clip.name;
+                        // Extract nice name from "Shinano_for_mixamo@Dancing" -> "Dancing"
+                        int atIndex = displayName.IndexOf('@');
+                        if (atIndex >= 0 && atIndex < displayName.Length - 1)
+                        {
+                            displayName = displayName.Substring(atIndex + 1);
+                        }
                         customAnimationNames.Add(displayName);
                         Debug.Log($"[Shinano] Loaded animation: {displayName} ({clip.length}s) from {fbxName}");
                     }
@@ -177,10 +269,8 @@ public class ShinanoController : MonoBehaviour
                 }
             }
         }
-        #endif
-        
-        Debug.Log($"[Shinano] Total custom animations loaded: {customAnimations.Count}");
     }
+    #endif
     
     void FindCharacter()
     {
