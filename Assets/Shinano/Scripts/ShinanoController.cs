@@ -12,6 +12,9 @@ using System.Collections.Generic;
 /// </summary>
 public class ShinanoController : MonoBehaviour
 {
+    // Speaking mode enum for mouth animations
+    public enum SpeakingMode { None, Speaking, Screaming, Whispering }
+    
     [Header("Character Reference")]
     public GameObject shinanoCharacter;
     public Animator characterAnimator;
@@ -60,6 +63,28 @@ public class ShinanoController : MonoBehaviour
     private bool earToggleState = true;   // true = visible
     private bool tailToggleState = true;  // true = visible
     private bool hipToggleState = false;  // true = big hip
+    
+    // Speaking animation state
+    private SpeakingMode currentSpeakingMode = SpeakingMode.None;
+    private Coroutine speakingCoroutine;
+    private SkinnedMeshRenderer bodyMeshRenderer;
+    
+    // Mouth blendshape indices (cached for performance)
+    private int blendIdx_mouth_a1 = -1;
+    private int blendIdx_mouth_a2 = -1;
+    private int blendIdx_mouth_e1 = -1;
+    private int blendIdx_mouth_i1 = -1;
+    private int blendIdx_mouth_o1 = -1;
+    private int blendIdx_mouth_u1 = -1;
+    private int blendIdx_mouth_close = -1;
+    private int blendIdx_mouthparts_open = -1;
+    
+    // Current mouth shape weights (set by coroutines, applied in LateUpdate)
+    private float[] currentMouthWeights = new float[8];  // a1, a2, e1, i1, o1, u1, close, parts_open
+    private bool mouthNeedsUpdate = false;
+    
+    // Speaking button images for visual feedback
+    private List<Image> speakingButtonImages = new List<Image>();
     
     // Colors
     private Color panelBg = new Color(0.1f, 0.1f, 0.15f, 0.95f);
@@ -199,6 +224,31 @@ public class ShinanoController : MonoBehaviour
             }
             
             Debug.Log($"[Shinano] Direct control refs - Ear: {(earObject != null ? "Found" : "NOT FOUND")}, Tail: {(tailObject != null ? "Found" : "NOT FOUND")}, Hip meshes: {hipRenderers.Count}");
+            
+            // Find Body mesh for speaking animations (mouth blendshapes)
+            GameObject bodyObj = FindChildRecursive(shinanoCharacter.transform, "Body");
+            if (bodyObj != null)
+            {
+                bodyMeshRenderer = bodyObj.GetComponent<SkinnedMeshRenderer>();
+                if (bodyMeshRenderer != null && bodyMeshRenderer.sharedMesh != null)
+                {
+                    // Cache blendshape indices for mouth animations
+                    blendIdx_mouth_a1 = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouth_a1");
+                    blendIdx_mouth_a2 = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouth_a2");
+                    blendIdx_mouth_e1 = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouth_e1");
+                    blendIdx_mouth_i1 = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouth_i1");
+                    blendIdx_mouth_o1 = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouth_o1");
+                    blendIdx_mouth_u1 = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouth_u1");
+                    blendIdx_mouth_close = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouth_close");
+                    blendIdx_mouthparts_open = bodyMeshRenderer.sharedMesh.GetBlendShapeIndex("mouthparts_open");
+                    
+                    Debug.Log($"[Shinano] Body mesh found with mouth blendshapes: a1={blendIdx_mouth_a1}, a2={blendIdx_mouth_a2}, e1={blendIdx_mouth_e1}, i1={blendIdx_mouth_i1}, o1={blendIdx_mouth_o1}, u1={blendIdx_mouth_u1}, close={blendIdx_mouth_close}, parts_open={blendIdx_mouthparts_open}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[Shinano] Body mesh not found - speaking animations won't work");
+            }
         }
     }
     
@@ -395,6 +445,72 @@ public class ShinanoController : MonoBehaviour
         
         // Add animation buttons
         AddCustomAnimationButtons(animationPanelRoot.transform, ref y);
+        
+        // === SPEAKING SECTION ===
+        y -= 10;
+        AddSectionHeader(animationPanelRoot.transform, "🗣️ Speech", ref y);
+        AddSpeakingButtons(animationPanelRoot.transform, ref y);
+    }
+    
+    void AddSpeakingButtons(Transform parent, ref float y)
+    {
+        speakingButtonImages.Clear();
+        
+        string[] labels = { "Speaking", "Screaming", "Whispering", "Stop" };
+        float btnW = 60;
+        float btnH = 28;
+        float spacing = 4;
+        float startX = 10;
+        
+        for (int i = 0; i < labels.Length; i++)
+        {
+            float x = startX + i * (btnW + spacing);
+            
+            GameObject btn = new GameObject("SpeakBtn_" + labels[i]);
+            btn.transform.SetParent(parent, false);
+            
+            RectTransform rect = btn.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0, 1);
+            rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(btnW, btnH);
+            
+            Image img = btn.AddComponent<Image>();
+            img.color = animBtnInactive;
+            
+            // Store button image for visual feedback (except Stop button)
+            if (i < 3)
+                speakingButtonImages.Add(img);
+            
+            Button button = btn.AddComponent<Button>();
+            button.targetGraphic = img;
+            
+            int modeIndex = i;
+            button.onClick.AddListener(() => {
+                if (modeIndex == 3)  // Stop
+                    StopSpeaking();
+                else
+                    SetSpeakingMode((SpeakingMode)(modeIndex + 1));
+            });
+            
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(btn.transform, false);
+            RectTransform txtRt = txtObj.AddComponent<RectTransform>();
+            txtRt.anchorMin = Vector2.zero;
+            txtRt.anchorMax = Vector2.one;
+            txtRt.offsetMin = new Vector2(2, 0);
+            txtRt.offsetMax = new Vector2(-2, 0);
+            
+            Text txt = txtObj.AddComponent<Text>();
+            txt.text = labels[i];
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 9;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
+        }
+        
+        y -= btnH + 8;
     }
     
     void AddCustomAnimationButtons(Transform parent, ref float y)
@@ -1450,5 +1566,204 @@ public class ShinanoController : MonoBehaviour
         // Animation is now either:
         // 1. Looping continuously (if clip.isLooping == true)
         // 2. Frozen at the last frame (if non-looping) - will reverse when user clicks again
+    }
+    
+    // === SPEAKING ANIMATION METHODS ===
+    
+    void SetSpeakingMode(SpeakingMode mode)
+    {
+        // If same mode, toggle off
+        if (currentSpeakingMode == mode)
+        {
+            StopSpeaking();
+            return;
+        }
+        
+        // Stop any existing speaking animation
+        if (speakingCoroutine != null)
+        {
+            StopCoroutine(speakingCoroutine);
+            speakingCoroutine = null;
+        }
+        
+        // Reset mouth to neutral
+        ResetMouthBlendshapes();
+        
+        currentSpeakingMode = mode;
+        UpdateSpeakingButtonColors();
+        
+        // Start new speaking mode
+        switch (mode)
+        {
+            case SpeakingMode.Speaking:
+                speakingCoroutine = StartCoroutine(SpeakingCoroutine());
+                break;
+            case SpeakingMode.Screaming:
+                speakingCoroutine = StartCoroutine(ScreamingCoroutine());
+                break;
+            case SpeakingMode.Whispering:
+                speakingCoroutine = StartCoroutine(WhisperingCoroutine());
+                break;
+        }
+        
+        Debug.Log($"[Shinano] Speaking mode: {mode}");
+    }
+    
+    void StopSpeaking()
+    {
+        if (speakingCoroutine != null)
+        {
+            StopCoroutine(speakingCoroutine);
+            speakingCoroutine = null;
+        }
+        
+        currentSpeakingMode = SpeakingMode.None;
+        ResetMouthBlendshapes();
+        UpdateSpeakingButtonColors();
+        
+        Debug.Log("[Shinano] Speaking stopped");
+    }
+    
+    void UpdateSpeakingButtonColors()
+    {
+        for (int i = 0; i < speakingButtonImages.Count; i++)
+        {
+            if (speakingButtonImages[i] != null)
+            {
+                bool isActive = ((int)currentSpeakingMode == i + 1);
+                speakingButtonImages[i].color = isActive ? animBtnActive : animBtnInactive;
+            }
+        }
+    }
+    
+    void ResetMouthBlendshapes()
+    {
+        if (bodyMeshRenderer == null) return;
+        
+        // Reset all mouth blendshapes to 0
+        if (blendIdx_mouth_a1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_a1, 0);
+        if (blendIdx_mouth_a2 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_a2, 0);
+        if (blendIdx_mouth_e1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_e1, 0);
+        if (blendIdx_mouth_i1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_i1, 0);
+        if (blendIdx_mouth_o1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_o1, 0);
+        if (blendIdx_mouth_u1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_u1, 0);
+        if (blendIdx_mouth_close >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_close, 0);
+        if (blendIdx_mouthparts_open >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouthparts_open, 0);
+    }
+    
+    void SetMouthShape(int blendIndex, float weight)
+    {
+        if (bodyMeshRenderer == null || blendIndex < 0) return;
+        bodyMeshRenderer.SetBlendShapeWeight(blendIndex, weight);
+    }
+    
+    // Normal speaking: cycles through vowel shapes at moderate speed
+    IEnumerator SpeakingCoroutine()
+    {
+        if (bodyMeshRenderer == null)
+        {
+            Debug.LogWarning("[Shinano] No body mesh for speaking!");
+            yield break;
+        }
+        
+        // Vowel blendshape indices for cycling
+        int[] vowelShapes = { blendIdx_mouth_a1, blendIdx_mouth_e1, blendIdx_mouth_i1, blendIdx_mouth_o1, blendIdx_mouth_u1, blendIdx_mouth_close };
+        float[] vowelWeights = { 70f, 60f, 50f, 65f, 55f, 0f };  // Natural speaking weights
+        
+        int currentVowel = 0;
+        
+        while (true)
+        {
+            // Reset previous shapes
+            ResetMouthBlendshapes();
+            
+            // Apply current vowel shape with some randomness
+            int shapeIdx = vowelShapes[currentVowel];
+            if (shapeIdx >= 0)
+            {
+                float weight = vowelWeights[currentVowel] + Random.Range(-10f, 15f);
+                weight = Mathf.Clamp(weight, 0f, 100f);
+                SetMouthShape(shapeIdx, weight);
+            }
+            
+            // Random time between syllables (natural speech rhythm)
+            float holdTime = Random.Range(0.08f, 0.15f);
+            yield return new WaitForSeconds(holdTime);
+            
+            // Move to next vowel (with some randomness to feel natural)
+            if (Random.value > 0.3f)
+            {
+                currentVowel = (currentVowel + 1) % vowelShapes.Length;
+            }
+            else
+            {
+                currentVowel = Random.Range(0, vowelShapes.Length);
+            }
+        }
+    }
+    
+    // Screaming: wide open mouth with slight variation
+    IEnumerator ScreamingCoroutine()
+    {
+        if (bodyMeshRenderer == null)
+        {
+            Debug.LogWarning("[Shinano] No body mesh for screaming!");
+            yield break;
+        }
+        
+        // Start with mouth wide open
+        SetMouthShape(blendIdx_mouth_a2, 100f);
+        if (blendIdx_mouthparts_open >= 0)
+            SetMouthShape(blendIdx_mouthparts_open, 80f);
+        
+        while (true)
+        {
+            // Add slight random variation to simulate screaming intensity
+            float aWeight = 85f + Random.Range(0f, 15f);
+            float partsWeight = 70f + Random.Range(0f, 20f);
+            
+            SetMouthShape(blendIdx_mouth_a2, aWeight);
+            if (blendIdx_mouthparts_open >= 0)
+                SetMouthShape(blendIdx_mouthparts_open, partsWeight);
+            
+            yield return new WaitForSeconds(Random.Range(0.05f, 0.1f));
+        }
+    }
+    
+    // Whispering: small, subtle mouth movements
+    IEnumerator WhisperingCoroutine()
+    {
+        if (bodyMeshRenderer == null)
+        {
+            Debug.LogWarning("[Shinano] No body mesh for whispering!");
+            yield break;
+        }
+        
+        while (true)
+        {
+            // Reset to near-closed
+            ResetMouthBlendshapes();
+            
+            // Small random mouth movements (between u1 and close)
+            float choice = Random.value;
+            if (choice < 0.4f)
+            {
+                // Slightly pursed (u shape)
+                SetMouthShape(blendIdx_mouth_u1, Random.Range(15f, 35f));
+            }
+            else if (choice < 0.7f)
+            {
+                // Slightly open (small a)
+                SetMouthShape(blendIdx_mouth_a1, Random.Range(10f, 25f));
+            }
+            else
+            {
+                // Nearly closed
+                SetMouthShape(blendIdx_mouth_close, Random.Range(50f, 80f));
+            }
+            
+            // Slower, more subtle movements for whispering
+            yield return new WaitForSeconds(Random.Range(0.12f, 0.22f));
+        }
     }
 }
