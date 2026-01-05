@@ -83,6 +83,9 @@ public class ShinanoController : MonoBehaviour
     private float[] currentMouthWeights = new float[8];  // a1, a2, e1, i1, o1, u1, close, parts_open
     private bool mouthNeedsUpdate = false;
     
+    // Speaking speed multiplier (higher = faster, 1.0 = normal, 0.5 = slow)
+    private float speakingSpeed = 1.0f;
+    
     // Speaking button images for visual feedback
     private List<Image> speakingButtonImages = new List<Image>();
     
@@ -465,6 +468,7 @@ public class ShinanoController : MonoBehaviour
         y -= 10;
         AddSectionHeader(animationPanelRoot.transform, "🗣️ Speech", ref y);
         AddSpeakingButtons(animationPanelRoot.transform, ref y);
+        AddSpeakingSpeedSlider(animationPanelRoot.transform, ref y);
     }
     
     void AddSpeakingButtons(Transform parent, ref float y)
@@ -526,6 +530,95 @@ public class ShinanoController : MonoBehaviour
         }
         
         y -= btnH + 8;
+    }
+    
+    void AddSpeakingSpeedSlider(Transform parent, ref float y)
+    {
+        GameObject lblObj = new GameObject("SliderLabel_SpeakSpeed");
+        lblObj.transform.SetParent(parent, false);
+        RectTransform lblRt = lblObj.AddComponent<RectTransform>();
+        lblRt.anchorMin = new Vector2(0, 1);
+        lblRt.anchorMax = new Vector2(0, 1);
+        lblRt.pivot = new Vector2(0, 1);
+        lblRt.anchoredPosition = new Vector2(10, y);
+        lblRt.sizeDelta = new Vector2(50, 20);
+        
+        Text lbl = lblObj.AddComponent<Text>();
+        lbl.text = "Speed";
+        lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        lbl.fontSize = 10;
+        lbl.alignment = TextAnchor.MiddleLeft;
+        lbl.color = textColor;
+        
+        GameObject sliderBg = new GameObject("Slider_SpeakSpeed");
+        sliderBg.transform.SetParent(parent, false);
+        RectTransform bgRt = sliderBg.AddComponent<RectTransform>();
+        bgRt.anchorMin = new Vector2(0, 1);
+        bgRt.anchorMax = new Vector2(1, 1);
+        bgRt.pivot = new Vector2(0, 1);
+        bgRt.anchoredPosition = new Vector2(60, y - 2);
+        bgRt.sizeDelta = new Vector2(-80, 16);
+        
+        Image bgImg = sliderBg.AddComponent<Image>();
+        bgImg.color = new Color(0.15f, 0.15f, 0.2f);
+        
+        GameObject fillArea = new GameObject("FillArea");
+        fillArea.transform.SetParent(sliderBg.transform, false);
+        RectTransform fillAreaRt = fillArea.AddComponent<RectTransform>();
+        fillAreaRt.anchorMin = Vector2.zero;
+        fillAreaRt.anchorMax = Vector2.one;
+        fillAreaRt.offsetMin = Vector2.zero;
+        fillAreaRt.offsetMax = Vector2.zero;
+        
+        GameObject fill = new GameObject("Fill");
+        fill.transform.SetParent(fillArea.transform, false);
+        RectTransform fillRt = fill.AddComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = new Vector2(0.5f, 1);  // Default 50% = normal speed
+        fillRt.offsetMin = Vector2.zero;
+        fillRt.offsetMax = Vector2.zero;
+        
+        Image fillImg = fill.AddComponent<Image>();
+        fillImg.color = sectionColor;
+        
+        GameObject handleArea = new GameObject("HandleArea");
+        handleArea.transform.SetParent(sliderBg.transform, false);
+        RectTransform handleAreaRt = handleArea.AddComponent<RectTransform>();
+        handleAreaRt.anchorMin = Vector2.zero;
+        handleAreaRt.anchorMax = Vector2.one;
+        handleAreaRt.offsetMin = Vector2.zero;
+        handleAreaRt.offsetMax = Vector2.zero;
+        
+        GameObject handle = new GameObject("Handle");
+        handle.transform.SetParent(handleArea.transform, false);
+        RectTransform handleRt = handle.AddComponent<RectTransform>();
+        handleRt.sizeDelta = new Vector2(10, 0);
+        
+        Image handleImg = handle.AddComponent<Image>();
+        handleImg.color = Color.white;
+        
+        Slider slider = sliderBg.AddComponent<Slider>();
+        slider.fillRect = fillRt;
+        slider.handleRect = handleRt;
+        slider.targetGraphic = handleImg;
+        slider.value = 0.5f;  // Default to normal speed (middle)
+        slider.onValueChanged.AddListener((v) => {
+            // Map 0-1 slider to speed multiplier:
+            // 0.0 = slowest (0.3x), 0.5 = normal (1.0x), 1.0 = fastest (3.0x)
+            if (v <= 0.5f)
+            {
+                // Slow range: 0.3 to 1.0
+                speakingSpeed = Mathf.Lerp(0.3f, 1.0f, v * 2f);
+            }
+            else
+            {
+                // Fast range: 1.0 to 3.0
+                speakingSpeed = Mathf.Lerp(1.0f, 3.0f, (v - 0.5f) * 2f);
+            }
+            Debug.Log($"[Shinano] Speaking speed: {speakingSpeed:F2}x");
+        });
+        
+        y -= 24;
     }
     
     void AddCustomAnimationButtons(Transform parent, ref float y)
