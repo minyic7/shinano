@@ -47,7 +47,9 @@ public class ShinanoController : MonoBehaviour
     private AnimationClip currentClip;  // Store reference to current clip
     private int currentAnimationIndex = -1;
     private Coroutine currentAnimationCoroutine;
+    #pragma warning disable CS0414 // Field is assigned but never read - kept for future AI brain integration
     private bool isHoldingPose = false;  // True when animation is frozen at final pose
+    #pragma warning restore CS0414
     private Vector3 savedCharacterPosition;  // Save position before animation to prevent drift
     private Quaternion savedCharacterRotation;  // Save rotation before animation
     
