@@ -290,6 +290,7 @@ public class ShinanoController : MonoBehaviour
     
     // LateUpdate runs after all animation processing - use it to reapply toggle states
     // that get overwritten by the PlayableGraph during custom animation playback
+    // Also applies mouth blendshapes for speaking animations (must be after animator)
     void LateUpdate()
     {
         if (isPlayingAction)
@@ -315,6 +316,20 @@ public class ShinanoController : MonoBehaviour
                     hipRenderers[i].SetBlendShapeWeight(hipBlendShapeIndices[i], hipWeight);
                 }
             }
+        }
+        
+        // Apply mouth blendshapes for speaking animations
+        // Must be done in LateUpdate to override animator values
+        if (mouthNeedsUpdate && bodyMeshRenderer != null)
+        {
+            if (blendIdx_mouth_a1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_a1, currentMouthWeights[0]);
+            if (blendIdx_mouth_a2 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_a2, currentMouthWeights[1]);
+            if (blendIdx_mouth_e1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_e1, currentMouthWeights[2]);
+            if (blendIdx_mouth_i1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_i1, currentMouthWeights[3]);
+            if (blendIdx_mouth_o1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_o1, currentMouthWeights[4]);
+            if (blendIdx_mouth_u1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_u1, currentMouthWeights[5]);
+            if (blendIdx_mouth_close >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_close, currentMouthWeights[6]);
+            if (blendIdx_mouthparts_open >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouthparts_open, currentMouthWeights[7]);
         }
     }
     
@@ -1619,6 +1634,7 @@ public class ShinanoController : MonoBehaviour
         
         currentSpeakingMode = SpeakingMode.None;
         ResetMouthBlendshapes();
+        mouthNeedsUpdate = false;  // Disable mouth updates when not speaking
         UpdateSpeakingButtonColors();
         
         Debug.Log("[Shinano] Speaking stopped");
@@ -1638,23 +1654,35 @@ public class ShinanoController : MonoBehaviour
     
     void ResetMouthBlendshapes()
     {
-        if (bodyMeshRenderer == null) return;
-        
-        // Reset all mouth blendshapes to 0
-        if (blendIdx_mouth_a1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_a1, 0);
-        if (blendIdx_mouth_a2 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_a2, 0);
-        if (blendIdx_mouth_e1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_e1, 0);
-        if (blendIdx_mouth_i1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_i1, 0);
-        if (blendIdx_mouth_o1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_o1, 0);
-        if (blendIdx_mouth_u1 >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_u1, 0);
-        if (blendIdx_mouth_close >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouth_close, 0);
-        if (blendIdx_mouthparts_open >= 0) bodyMeshRenderer.SetBlendShapeWeight(blendIdx_mouthparts_open, 0);
+        // Reset all mouth weights in the array (applied in LateUpdate)
+        for (int i = 0; i < currentMouthWeights.Length; i++)
+        {
+            currentMouthWeights[i] = 0f;
+        }
+        mouthNeedsUpdate = true;
     }
     
+    // Maps blendshape index to array position and sets weight
     void SetMouthShape(int blendIndex, float weight)
     {
-        if (bodyMeshRenderer == null || blendIndex < 0) return;
-        bodyMeshRenderer.SetBlendShapeWeight(blendIndex, weight);
+        if (blendIndex < 0) return;
+        
+        // Map blendshape index to array position
+        int arrayIdx = -1;
+        if (blendIndex == blendIdx_mouth_a1) arrayIdx = 0;
+        else if (blendIndex == blendIdx_mouth_a2) arrayIdx = 1;
+        else if (blendIndex == blendIdx_mouth_e1) arrayIdx = 2;
+        else if (blendIndex == blendIdx_mouth_i1) arrayIdx = 3;
+        else if (blendIndex == blendIdx_mouth_o1) arrayIdx = 4;
+        else if (blendIndex == blendIdx_mouth_u1) arrayIdx = 5;
+        else if (blendIndex == blendIdx_mouth_close) arrayIdx = 6;
+        else if (blendIndex == blendIdx_mouthparts_open) arrayIdx = 7;
+        
+        if (arrayIdx >= 0)
+        {
+            currentMouthWeights[arrayIdx] = weight;
+            mouthNeedsUpdate = true;
+        }
     }
     
     // Normal speaking: cycles through vowel shapes at moderate speed
