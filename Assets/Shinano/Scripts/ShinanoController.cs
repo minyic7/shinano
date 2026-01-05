@@ -1808,7 +1808,8 @@ public class ShinanoController : MonoBehaviour
             }
             
             // Random time between syllables (natural speech rhythm)
-            float holdTime = Random.Range(0.08f, 0.15f);
+            // Divide by speakingSpeed: higher speed = shorter wait time
+            float holdTime = Random.Range(0.08f, 0.15f) / speakingSpeed;
             yield return new WaitForSeconds(holdTime);
             
             // Move to next vowel (with some randomness to feel natural)
@@ -1847,7 +1848,8 @@ public class ShinanoController : MonoBehaviour
             if (blendIdx_mouthparts_open >= 0)
                 SetMouthShape(blendIdx_mouthparts_open, partsWeight);
             
-            yield return new WaitForSeconds(Random.Range(0.05f, 0.1f));
+            // Divide by speakingSpeed: higher speed = shorter wait time
+            yield return new WaitForSeconds(Random.Range(0.05f, 0.1f) / speakingSpeed);
         }
     }
     
@@ -1884,7 +1886,8 @@ public class ShinanoController : MonoBehaviour
             }
             
             // Slower, more subtle movements for whispering
-            yield return new WaitForSeconds(Random.Range(0.12f, 0.22f));
+            // Divide by speakingSpeed: higher speed = shorter wait time
+            yield return new WaitForSeconds(Random.Range(0.12f, 0.22f) / speakingSpeed);
         }
     }
 }
